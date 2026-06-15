@@ -4,7 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
-import { searchSimilarity, rerankChunks } from "@/lib/vectorStore";
+import { searchHybrid } from "@/lib/vectorStore";
+import { formatGraphRelationships } from "@/lib/neo4j";
 
 const CA_SYSTEM_PROMPT = `You are a knowledgeable and professional Indian Chartered Accountant (CA).
 Your expertise covers:
@@ -69,18 +70,20 @@ export async function POST(req: Request) {
       }
     });
 
-    // Run RAG retrieval pipeline (vector search with keyword fallback)
+    // Run Hybrid RAG retrieval pipeline (semantic search + graph expansion + reranking)
     let retrievedContext = "";
     try {
-      const rawChunks = await searchSimilarity(userContent, 5);
-      const reranked = await rerankChunks(userContent, rawChunks, 3);
-      if (reranked.length > 0) {
-        retrievedContext = reranked
-          .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
-          .join("\n\n---\n\n");
-      }
+      const { chunks, relationships } = await searchHybrid(userContent, 10, 4);
+      
+      const chunkContext = chunks
+        .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
+        .join("\n\n---\n\n");
+
+      const graphContext = formatGraphRelationships(relationships);
+      
+      retrievedContext = [chunkContext, graphContext].filter(Boolean).join("\n\n---\n\n");
     } catch (err) {
-      console.error("Failed to retrieve tax context:", err);
+      console.error("Failed to retrieve hybrid tax context:", err);
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;

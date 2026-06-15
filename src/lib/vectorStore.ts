@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { embed } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { getRelatedTaxRelationships, extractTaxSections } from "./neo4j";
 
 const STOPWORDS = new Set([
   "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at",
@@ -209,4 +210,96 @@ export async function rerankChunks(
     console.error("Cohere Rerank failed, falling back to vector similarity ranking:", error);
     return chunks.slice(0, limit);
   }
+}
+
+export interface HybridSearchResult {
+  chunks: SearchResult[];
+  relationships: any[];
+}
+
+export async function searchHybrid(
+  query: string,
+  chunkLimit: number = 5,
+  rerankLimit: number = 3
+): Promise<HybridSearchResult> {
+  // 1. Get initial semantic chunks (retrieve a bit more than limit to allow graph additions/reranking)
+  const initialChunks = await searchSimilarity(query, 10);
+
+  // 2. Extract sections from query and initial chunks
+  const detectedSections = new Set<string>();
+  
+  // Extract from query
+  extractTaxSections(query).forEach((sec) => detectedSections.add(sec));
+  
+  // Extract from retrieved chunks
+  initialChunks.forEach((chunk) => {
+    extractTaxSections(chunk.content).forEach((sec) => detectedSections.add(sec));
+    extractTaxSections(chunk.title).forEach((sec) => detectedSections.add(sec));
+  });
+
+  // 3. Query Knowledge Graph for relationships
+  const relationships = await getRelatedTaxRelationships(Array.from(detectedSections).join(" "));
+
+  // 4. Graph-expanded retrieval: find any sections mentioned as targets/sources in the relationships
+  const expandedSections = new Set<string>();
+  relationships.forEach((rel) => {
+    if (rel.source.startsWith("Section")) expandedSections.add(rel.source);
+    if (rel.target.startsWith("Section")) expandedSections.add(rel.target);
+  });
+
+  // Filter out already detected sections to find new ones
+  const sectionsToFetch = Array.from(expandedSections).filter(
+    (sec) => !detectedSections.has(sec)
+  );
+
+  let graphChunks: SearchResult[] = [];
+  if (sectionsToFetch.length > 0) {
+    // Retrieve chunks matching these new sections from the database
+    const matchingDocs = await prisma.document.findMany({
+      where: {
+        OR: sectionsToFetch.map((sec) => ({
+          title: { contains: sec }
+        }))
+      },
+      include: {
+        chunks: true
+      }
+    });
+
+    matchingDocs.forEach((doc) => {
+      doc.chunks.forEach((chunk) => {
+        graphChunks.push({
+          chunkId: chunk.id,
+          documentId: chunk.documentId,
+          title: doc.title,
+          source: doc.source,
+          content: chunk.content,
+          similarity: 0.85 // Give graph-expanded chunks a high baseline score
+        });
+      });
+    });
+  }
+
+  // 5. Merge, deduplicate, and rerank
+  const allChunksMap = new Map<string, SearchResult>();
+  
+  // Add initial chunks
+  initialChunks.forEach((c) => allChunksMap.set(c.chunkId, c));
+  
+  // Add graph expanded chunks if they don't already exist
+  graphChunks.forEach((c) => {
+    if (!allChunksMap.has(c.chunkId)) {
+      allChunksMap.set(c.chunkId, c);
+    }
+  });
+
+  const mergedChunks = Array.from(allChunksMap.values());
+  
+  // Rerank the merged set
+  const rerankedChunks = await rerankChunks(query, mergedChunks, rerankLimit);
+
+  return {
+    chunks: rerankedChunks,
+    relationships
+  };
 }
