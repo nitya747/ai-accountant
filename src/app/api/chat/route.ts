@@ -6,6 +6,13 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
 import { searchHybrid } from "@/lib/vectorStore";
 import { formatGraphRelationships } from "@/lib/neo4j";
+import { calculateTax } from "@/lib/taxCalculator";
+import {
+  tax_slab_calculator,
+  itr_form_selector,
+  deduction_lookup,
+  tds_lookup,
+} from "@/lib/taxTools";
 
 const CA_SYSTEM_PROMPT = `You are a knowledgeable and professional Indian Chartered Accountant (CA).
 Your expertise covers:
@@ -91,16 +98,92 @@ export async function POST(req: Request) {
 
     if (isMockMode) {
       // Mock streaming mode to support local prototyping without API keys
-      let mockResponseText = `Hello! I am your AI Chartered Accountant. (RAG Active: Running in Mock Mode)\n\n`;
+      let mockResponseText = `Hello! I am your AI Chartered Accountant. (Running in Mock Mode)\n\n`;
       
-      if (retrievedContext) {
-        mockResponseText += `Based on your query, I retrieved the following relevant tax provisions from the database:\n\n---\n\n${retrievedContext}\n\n---\n\n`;
-        mockResponseText += `*(Note: Under a live OpenRouter/OpenAI API configuration, the model would synthesize these sections into a direct answer.)*`;
-      } else {
-        mockResponseText += `No matching tax provisions were found in the local database for your query: "${userContent}".\n\n`;
-      }
+      const lowerQuery = userContent.toLowerCase();
+      if (lowerQuery.includes("calculate") || lowerQuery.includes("tax on") || lowerQuery.includes("salary of") || lowerQuery.includes("earning")) {
+        // Extract a number from the query
+        const matches = lowerQuery.replace(/,/g, "").match(/\d+/g);
+        const amount = matches ? parseInt(matches[0], 10) : 800000; // default to 8 Lakhs
+        const calcRes = calculateTax({ salary: amount });
+        
+        mockResponseText += `### Programmatic Tax Calculation (Mock Mode)\n`;
+        mockResponseText += `For a salary of **₹${amount.toLocaleString("en-IN")}** (AY 2025-26):\n\n`;
+        mockResponseText += `| Item | Old Regime | New Regime |\n`;
+        mockResponseText += `| :--- | :--- | :--- |\n`;
+        mockResponseText += `| **Gross Salary** | ₹${amount.toLocaleString("en-IN")} | ₹${amount.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Standard Deduction** | ₹${calcRes.oldRegime.salaryStandardDeduction.toLocaleString("en-IN")} | ₹${calcRes.newRegime.salaryStandardDeduction.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Taxable Income** | ₹${calcRes.oldRegime.taxableIncome.toLocaleString("en-IN")} | ₹${calcRes.newRegime.taxableIncome.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Slab Tax** | ₹${calcRes.oldRegime.slabTax.toLocaleString("en-IN")} | ₹${calcRes.newRegime.slabTax.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Rebate (Sec 87A)** | ₹${calcRes.oldRegime.rebate87A.toLocaleString("en-IN")} | ₹${calcRes.newRegime.rebate87A.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Health & Education Cess (4%)** | ₹${calcRes.oldRegime.cess.toLocaleString("en-IN")} | ₹${calcRes.newRegime.cess.toLocaleString("en-IN")} |\n`;
+        mockResponseText += `| **Net Tax Liability** | **₹${calcRes.oldRegime.netTax.toLocaleString("en-IN")}** | **₹${calcRes.newRegime.netTax.toLocaleString("en-IN")}** |\n\n`;
+        mockResponseText += `**Recommendation:** The **${calcRes.optimalRegime} Regime** is better for you. `;
+        if (calcRes.taxSavings > 0) {
+          mockResponseText += `You will save **₹${calcRes.taxSavings.toLocaleString("en-IN")}**.\n`;
+        } else {
+          mockResponseText += `Both regimes result in the same tax liability.\n`;
+        }
+      } else if (lowerQuery.includes("itr") || lowerQuery.includes("form") || lowerQuery.includes("return")) {
+        const hasSalary = lowerQuery.includes("salary") || lowerQuery.includes("job") || lowerQuery.includes("salaried");
+        const hasCapitalGains = lowerQuery.includes("capital") || lowerQuery.includes("gain") || lowerQuery.includes("share") || lowerQuery.includes("stock");
+        const hasPresumptive = lowerQuery.includes("presumptive") || lowerQuery.includes("freelance") || lowerQuery.includes("44ad");
+        const hasRegularBusiness = lowerQuery.includes("business") && !hasPresumptive;
 
-      mockResponseText += `\n\n*Please replace \`mock-openrouter-key\` in your \`.env\` file with a valid credentials to enable real AI generation.*`;
+        const itrRes = (await itr_form_selector.execute!(
+          {
+            hasSalary,
+            hasCapitalGains,
+            hasPresumptiveBusiness: hasPresumptive,
+            hasPresumptiveProfessional: hasPresumptive,
+            hasRegularBusinessOrProfessional: hasRegularBusiness,
+          },
+          { toolCallId: "mock", messages: [] }
+        )) as any;
+
+        mockResponseText += `### ITR Form Selection (Mock Mode)\n`;
+        mockResponseText += `Based on your profile, you should file **${itrRes.selectedForm}**.\n\n`;
+        mockResponseText += `**Reasons:**\n`;
+        itrRes.reasons.forEach((r: string) => {
+          mockResponseText += `- ${r}\n`;
+        });
+      } else if (lowerQuery.includes("tds") || lowerQuery.includes("tax deducted")) {
+        let lookupType = "rent";
+        if (lowerQuery.includes("salary")) lookupType = "salary";
+        else if (lowerQuery.includes("contractor") || lowerQuery.includes("194c")) lookupType = "contractor";
+        else if (lowerQuery.includes("professional") || lowerQuery.includes("194j")) lookupType = "professional";
+        else if (lowerQuery.includes("life insurance") || lowerQuery.includes("194da")) lookupType = "life insurance";
+        else if (lowerQuery.includes("interest") || lowerQuery.includes("194a")) lookupType = "interest";
+
+        const tdsRes = (await tds_lookup.execute!(
+          { sectionOrType: lookupType },
+          { toolCallId: "mock", messages: [] }
+        )) as any;
+        mockResponseText += `### TDS Rates & Thresholds (Mock Mode)\n\n`;
+        tdsRes.results.forEach((item: any) => {
+          mockResponseText += `- **${item.section}** (${item.type}): **${item.rate}** | Threshold: **${item.threshold}**\n  *Notes:* ${item.notes}\n\n`;
+        });
+      } else if (lowerQuery.includes("deduction") || lowerQuery.includes("80c") || lowerQuery.includes("80d") || lowerQuery.includes("saving")) {
+        let profile: "salaried" | "senior_citizen" | "business_owner" | "professional" | "general" = "salaried";
+        if (lowerQuery.includes("senior") || lowerQuery.includes("citizen") || lowerQuery.includes("age")) profile = "senior_citizen";
+        else if (lowerQuery.includes("business") || lowerQuery.includes("owner")) profile = "business_owner";
+        else if (lowerQuery.includes("professional") || lowerQuery.includes("consultant")) profile = "professional";
+
+        const dedRes = (await deduction_lookup.execute!(
+          { profile },
+          { toolCallId: "mock", messages: [] }
+        )) as any;
+        mockResponseText += `### Tax Deductions & Exemptions for ${profile.replace("_", " ")} (Mock Mode)\n\n`;
+        mockResponseText += `| Section | Old Regime | New Regime | Description |\n`;
+        mockResponseText += `| :--- | :--- | :--- | :--- |\n`;
+        dedRes.deductions.forEach((d: any) => {
+          mockResponseText += `| **${d.section}** | ${d.oldRegime} | ${d.newRegime} | ${d.description} |\n`;
+        });
+      } else if (retrievedContext) {
+        mockResponseText += `Based on your query, here are the relevant tax provisions retrieved:\n\n---\n\n${retrievedContext}\n\n---\n\n`;
+      } else {
+        mockResponseText += `No matching tax provisions were found. Ask about tax calculation, ITR forms, TDS rates, or deductions.\n`;
+      }
 
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
@@ -167,7 +250,14 @@ export async function POST(req: Request) {
       model: openrouterClient(modelName),
       system: finalSystemPrompt,
       messages: formattedMessages,
-      onFinish: async ({ text }) => {
+      maxSteps: 5,
+      tools: {
+        tax_slab_calculator,
+        itr_form_selector,
+        deduction_lookup,
+        tds_lookup,
+      },
+      onFinish: async ({ text }: { text: string }) => {
         // Save assistant response to DB
         await prisma.message.create({
           data: {
@@ -183,7 +273,7 @@ export async function POST(req: Request) {
           data: { updatedAt: new Date() }
         });
       }
-    });
+    } as any);
 
     return result.toTextStreamResponse();
   } catch (error: any) {
