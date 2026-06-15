@@ -66,11 +66,17 @@ export async function getEmbedding(text: string): Promise<number[]> {
   return embedding;
 }
 
-export async function searchSimilarity(query: string, limit: number = 5): Promise<SearchResult[]> {
+export async function searchSimilarity(query: string, limit: number = 5, sessionId?: string): Promise<SearchResult[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   const isMockMode = !apiKey || apiKey === "mock-openai-key";
 
   const dbChunks = await prisma.chunk.findMany({
+    where: {
+      OR: [
+        { document: { sessionId: null } },
+        { document: { sessionId } }
+      ]
+    },
     include: {
       document: true,
     },
@@ -160,7 +166,7 @@ export async function searchSimilarity(query: string, limit: number = 5): Promis
     console.error("Vector search failed, falling back to keyword search:", error);
     // Fallback if vector embedding fails
     process.env.OPENAI_API_KEY = "mock-openai-key";
-    const fallbackRes = await searchSimilarity(query, limit);
+    const fallbackRes = await searchSimilarity(query, limit, sessionId);
     process.env.OPENAI_API_KEY = apiKey; // Restore
     return fallbackRes;
   }
@@ -220,10 +226,11 @@ export interface HybridSearchResult {
 export async function searchHybrid(
   query: string,
   chunkLimit: number = 5,
-  rerankLimit: number = 3
+  rerankLimit: number = 3,
+  sessionId?: string
 ): Promise<HybridSearchResult> {
   // 1. Get initial semantic chunks (retrieve a bit more than limit to allow graph additions/reranking)
-  const initialChunks = await searchSimilarity(query, 10);
+  const initialChunks = await searchSimilarity(query, 10, sessionId);
 
   // 2. Extract sections from query and initial chunks
   const detectedSections = new Set<string>();
@@ -257,9 +264,19 @@ export async function searchHybrid(
     // Retrieve chunks matching these new sections from the database
     const matchingDocs = await prisma.document.findMany({
       where: {
-        OR: sectionsToFetch.map((sec) => ({
-          title: { contains: sec }
-        }))
+        AND: [
+          {
+            OR: sectionsToFetch.map((sec) => ({
+              title: { contains: sec }
+            }))
+          },
+          {
+            OR: [
+              { sessionId: null },
+              { sessionId }
+            ]
+          }
+        ]
       },
       include: {
         chunks: true

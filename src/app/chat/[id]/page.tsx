@@ -5,7 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, User, Bot, AlertTriangle } from "lucide-react";
+import { Send, User, Bot, AlertTriangle, Paperclip } from "lucide-react";
 
 export default function SessionChatPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = React.use(params);
@@ -14,6 +14,10 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -29,37 +33,13 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     return m.content || "";
   };
 
-  useEffect(() => {
-    const fetchSessionData = async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/sessions/${sessionId}`);
-        if (!res.ok) {
-          throw new Error("Failed to load chat history");
-        }
-        const data = await res.json();
-        const formatted = data.messages.map((m: any) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          parts: [{ type: "text", text: m.content }],
-        }));
-        setInitialMessages(formatted);
-      } catch (err: any) {
-        setError(err.message || "Failed to load chat session");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSessionData();
-  }, [sessionId]);
-
   const [input, setInput] = useState("");
 
   const {
     messages,
     sendMessage,
     status,
+    setMessages,
   } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -68,11 +48,83 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     messages: initialMessages,
   });
 
+  const fetchSessionData = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      const res = await fetch(`/api/sessions/${sessionId}`);
+      if (!res.ok) {
+        throw new Error("Failed to load chat history");
+      }
+      const data = await res.json();
+      const formatted = data.messages.map((m: any) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        parts: [{ type: "text", text: m.content }],
+      }));
+      setInitialMessages(formatted);
+      setMessages(formatted);
+    } catch (err: any) {
+      setError(err.message || "Failed to load chat session");
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSessionData(true);
+  }, [sessionId]);
+
   const isChatStreaming = status === "streaming" || status === "submitted";
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File size exceeds the 10MB limit.");
+      return;
+    }
+
+    if (file.type !== "application/pdf") {
+      alert("Only PDF documents are supported.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadProgress("Reading and uploading PDF...");
+      
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sessionId", sessionId);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to upload document");
+      }
+
+      setUploadProgress("Analyzing document & extracting tax metrics...");
+      await fetchSessionData(false);
+      
+    } catch (err: any) {
+      alert(err.message || "An error occurred during file upload.");
+    } finally {
+      setUploading(false);
+      setUploadProgress("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isChatStreaming) return;
+    if (!input.trim() || isChatStreaming || uploading) return;
     sendMessage({ role: "user", parts: [{ type: "text", text: input }] });
     setInput("");
   };
@@ -105,7 +157,20 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="flex flex-col flex-1 h-full bg-zinc-950 overflow-hidden">
+    <div className="flex flex-col flex-1 h-full bg-zinc-950 overflow-hidden relative">
+      {/* Uploading Overlay */}
+      {uploading && (
+        <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
+          <div className="relative flex items-center justify-center">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+            <div className="absolute h-10 w-10 rounded-full bg-emerald-500/10 animate-ping" />
+          </div>
+          <div className="text-center space-y-1.5 font-sans">
+            <p className="text-lg font-semibold text-white">Analyzing Tax Document</p>
+            <p className="text-sm text-zinc-400 animate-pulse">{uploadProgress}</p>
+          </div>
+        </div>
+      )}
       {/* Top Header */}
       <div className="h-14 border-b border-zinc-900 px-6 flex items-center justify-between bg-zinc-900/40 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-2 font-sans">
@@ -183,15 +248,31 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
       <div className="p-4 border-t border-zinc-900 bg-zinc-950">
         <form onSubmit={onSubmit} className="max-w-3xl mx-auto relative">
           <input
+            type="file"
+            accept=".pdf"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isChatStreaming || uploading}
+            className="absolute left-2.5 top-2.5 p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer"
+            title="Upload Form-16 / 26AS PDF"
+          >
+            <Paperclip className="h-4 w-4" />
+          </button>
+          <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything about Section 80C, capital gains, regimes..."
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 pr-12 text-sm text-zinc-100 placeholder-zinc-500 shadow-inner focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-sans"
-            disabled={isChatStreaming}
+            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3.5 pl-12 pr-12 text-sm text-zinc-100 placeholder-zinc-500 shadow-inner focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-sans"
+            disabled={isChatStreaming || uploading}
           />
           <button
             type="submit"
-            disabled={isChatStreaming || !input.trim()}
+            disabled={isChatStreaming || !input.trim() || uploading}
             className="absolute right-2.5 top-2.5 p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer"
           >
             <Send className="h-4 w-4" />

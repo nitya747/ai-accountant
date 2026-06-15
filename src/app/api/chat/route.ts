@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     // Run Hybrid RAG retrieval pipeline (semantic search + graph expansion + reranking)
     let retrievedContext = "";
     try {
-      const { chunks, relationships } = await searchHybrid(userContent, 10, 4);
+      const { chunks, relationships } = await searchHybrid(userContent, 10, 4, sessionId);
       
       const chunkContext = chunks
         .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
