@@ -37,3 +37,19 @@ model Message {
   createdAt DateTime @default(now())
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
+
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  source    String   // 'income_tax_act' | 'gst_act' | 'cbdt_circular' | 'user_upload'
+  createdAt DateTime @default(now())
+  chunks    Chunk[]
+}
+
+model Chunk {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String
+  embedding  String   // JSON string of Float[] for SQLite/fallback compat
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}

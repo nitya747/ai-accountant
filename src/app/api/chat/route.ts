@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText } from "ai";
+import { searchSimilarity, rerankChunks } from "@/lib/vectorStore";
 
 const CA_SYSTEM_PROMPT = `You are a knowledgeable and professional Indian Chartered Accountant (CA).
 Your expertise covers:
@@ -18,6 +19,16 @@ Guidelines:
 - Provide clear step-by-step calculations where applicable.
 - Remind users that while you provide accurate tax guidance, they should consult a licensed CA for final filings.
 - Respond in professional, clean English (or Hinglish if the user asks in Hinglish).`;
+
+function getMessageContent(m: any): string {
+  if (typeof m.content === "string" && m.content) return m.content;
+  if (Array.isArray(m.parts)) {
+    return m.parts
+      .map((part: any) => (part.type === "text" ? part.text : ""))
+      .join("");
+  }
+  return "";
+}
 
 export async function POST(req: Request) {
   try {
@@ -48,29 +59,45 @@ export async function POST(req: Request) {
 
     // Save the user's latest message to the database
     const lastUserMessage = messages[messages.length - 1];
+    const userContent = getMessageContent(lastUserMessage);
+
     await prisma.message.create({
       data: {
         sessionId,
         role: "user",
-        content: lastUserMessage.content,
+        content: userContent,
       }
     });
+
+    // Run RAG retrieval pipeline (vector search with keyword fallback)
+    let retrievedContext = "";
+    try {
+      const rawChunks = await searchSimilarity(userContent, 5);
+      const reranked = await rerankChunks(userContent, rawChunks, 3);
+      if (reranked.length > 0) {
+        retrievedContext = reranked
+          .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
+          .join("\n\n---\n\n");
+      }
+    } catch (err) {
+      console.error("Failed to retrieve tax context:", err);
+    }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     const isMockMode = !apiKey || apiKey === "mock-openrouter-key";
 
     if (isMockMode) {
       // Mock streaming mode to support local prototyping without API keys
-      const mockResponseText = `Hello! I am your AI Chartered Accountant. Since we are running in mock mode, I am giving you a pre-configured response. 
+      let mockResponseText = `Hello! I am your AI Chartered Accountant. (RAG Active: Running in Mock Mode)\n\n`;
+      
+      if (retrievedContext) {
+        mockResponseText += `Based on your query, I retrieved the following relevant tax provisions from the database:\n\n---\n\n${retrievedContext}\n\n---\n\n`;
+        mockResponseText += `*(Note: Under a live OpenRouter/OpenAI API configuration, the model would synthesize these sections into a direct answer.)*`;
+      } else {
+        mockResponseText += `No matching tax provisions were found in the local database for your query: "${userContent}".\n\n`;
+      }
 
-To enable real AI responses, please replace \`mock-openrouter-key\` in your \`.env\` file with a valid OpenRouter API key.
-
-Here are a few things you can ask me about:
-1. Deductions under **Section 80C** (up to ₹1.5 Lakhs in PPF, ELSS, etc.) or **Section 80D** (health insurance premiums)
-2. Comparison of the **Old vs New Tax Regime** (AY 2025-26 / FY 2024-25)
-3. Determining the correct **ITR Form** (ITR-1 for salary/interest, ITR-4 for presumptive business, etc.)
-
-*Please consult a licensed CA for final filings.*`;
+      mockResponseText += `\n\n*Please replace \`mock-openrouter-key\` in your \`.env\` file with a valid credentials to enable real AI generation.*`;
 
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
@@ -79,7 +106,7 @@ Here are a few things you can ask me about:
           for (const word of words) {
             const chunk = `0:${JSON.stringify(word + " ")}\n`;
             controller.enqueue(encoder.encode(chunk));
-            await new Promise((resolve) => setTimeout(resolve, 50)); // typing effect
+            await new Promise((resolve) => setTimeout(resolve, 20)); // typing effect
           }
           
           // Save assistant response to DB at the end of streaming
@@ -104,6 +131,7 @@ Here are a few things you can ask me about:
       return new Response(stream, {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
+          "X-Experimental-Stream-Data": "true",
           "Connection": "keep-alive",
         }
       });
@@ -124,12 +152,17 @@ Here are a few things you can ask me about:
     // Format messages for Vercel AI SDK (it expects role and content fields)
     const formattedMessages = messages.map((m: any) => ({
       role: m.role,
-      content: m.content
+      content: getMessageContent(m)
     }));
+
+    // Inject RAG context into system prompt
+    const finalSystemPrompt = retrievedContext
+      ? `${CA_SYSTEM_PROMPT}\n\nHere is the most relevant tax database context retrieved for the user's query:\n${retrievedContext}\n\nGuidelines:\n- Rely on the retrieved context to answer the query accurately.\n- If the context does not contain the answer, use your pre-trained knowledge but mention that it is based on general tax understanding.`
+      : CA_SYSTEM_PROMPT;
 
     const result = await streamText({
       model: openrouterClient(modelName),
-      system: CA_SYSTEM_PROMPT,
+      system: finalSystemPrompt,
       messages: formattedMessages,
       onFinish: async ({ text }) => {
         // Save assistant response to DB

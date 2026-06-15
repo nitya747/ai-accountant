@@ -1,0 +1,80 @@
+[
+  {
+    "title": "AY 2025-26 Tax Slabs and Regimes",
+    "source": "income_tax_act",
+    "chunks": [
+      {
+        "heading": "New Tax Regime Slabs (AY 2025-26 / FY 2024-25)",
+        "content": "For Assessment Year (AY) 2025-26, corresponding to Financial Year (FY) 2024-25, the New Tax Regime is the default regime under Section 115BAC. The tax slabs are:\n- Income up to ₹3,00,000: Nil (0%)\n- Income from ₹3,00,001 to ₹7,00,000: 5%\n- Income from ₹7,00,001 to ₹10,00,000: 10%\n- Income from ₹10,00,001 to ₹12,00,000: 15%\n- Income from ₹12,00,001 to ₹15,00,000: 20%\n- Income above ₹15,00,000: 30%\n\nStandard Deduction for salaried employees under the New Regime is ₹75,000 (increased from ₹50,000 by Finance Act 2024)."
+      },
+      {
+        "heading": "Old Tax Regime Slabs (AY 2025-26 / FY 2024-25)",
+        "content": "Under the Old Tax Regime for AY 2025-26, the tax slabs for individuals below 60 years of age are:\n- Income up to ₹2,50,000: Nil (0%)\n- Income from ₹2,50,001 to ₹5,00,000: 5%\n- Income from ₹5,00,001 to ₹10,00,000: 20%\n- Income above ₹10,00,000: 30%\n\nStandard Deduction for salaried employees under the Old Regime is ₹50,000. Under the Old Regime, deductions under Chapter VI-A (80C, 80D, etc.) and exemptions (HRA, LTA) are allowed."
+      },
+      {
+        "heading": "Tax Rebate under Section 87A",
+        "content": "Section 87A provides a tax rebate for resident individuals:\n- Under the New Tax Regime, a rebate up to ₹20,000 is allowed if the total taxable income does not exceed ₹7,00,000. Marginal relief is available if the taxable income slightly exceeds ₹7,00,000.\n- Under the Old Tax Regime, a rebate up to ₹12,500 is allowed if the total taxable income does not exceed ₹5,00,000."
+      }
+    ]
+  },
+  {
+    "title": "Income Tax Deductions (Chapter VI-A)",
+    "source": "income_tax_act",
+    "chunks": [
+      {
+        "heading": "Section 80C - Deductions for Savings & Investments",
+        "content": "Section 80C of the Income Tax Act allows a deduction of up to ₹1,50,000 per financial year for investments in specified instruments. Eligible investments include:\n- Public Provident Fund (PPF)\n- Employee Provident Fund (EPF)\n- Equity Linked Savings Scheme (ELSS) mutual funds\n- National Savings Certificate (NSC)\n- Life Insurance Premium payments\n- Principal repayment of Home Loan\n- Sukanya Samriddhi Yojana (SSY)\n- Senior Citizens Savings Scheme (SCSS)\n- Tuition/school fees for up to two children\nNote: This deduction is only available under the Old Tax Regime. It is not allowed under the New Tax Regime."
+      },
+      {
+        "heading": "Section 80D - Medical Insurance Deduction",
+        "content": "Section 80D allows a deduction for health insurance premiums paid:\n- Self, spouse, and dependent children: Up to ₹25,000 (increases to ₹50,000 if self/spouse is a senior citizen).\n- Parents: Additional deduction up to ₹25,000 (increases to ₹50,000 if parents are senior citizens).\n- Preventive health check-up: Up to ₹5,000 within the overall limit.\nNote: This deduction is only available under the Old Tax Regime. It is not allowed under the New Tax Regime."
+      },
+      {
+        "heading": "Section 24(b) - Home Loan Interest Deduction",
+        "content": "Section 24(b) allows deduction of interest paid on a home loan:\n- Self-occupied property: Up to ₹2,00,000 per year can be claimed as a deduction.\n- Let-out property: No upper limit for interest deduction, but loss from house property that can be set off against other heads of income is capped at ₹2,00,000.\nNote: Deduction for self-occupied home loan interest under Section 24(b) is only available under the Old Tax Regime. It is not allowed under the default New Tax Regime."
+      },
+      {
+        "heading": "House Rent Allowance (HRA) Exemption under Section 10(13A)",
+        "content": "House Rent Allowance (HRA) received by salaried employees is exempt under Section 10(13A) to the extent of the minimum of the following three:\n1. Actual HRA received\n2. Rent paid minus 10% of basic salary\n3. 50% of basic salary (for metro cities: Delhi, Mumbai, Kolkata, Chennai) or 40% (for non-metros)\nNote: HRA exemption is only available under the Old Tax Regime. It is not allowed under the default New Tax Regime."
+      }
+    ]
+  },
+  {
+    "title": "Presumptive Taxation Scheme",
+    "source": "income_tax_act",
+    "chunks": [
+      {
+        "heading": "Section 44AD - Presumptive Taxation for Businesses",
+        "content": "Section 44AD offers a presumptive taxation scheme for resident individuals, HUFs, and partnership firms (excluding LLPs) engaged in business:\n- Eligibility: Turnover/gross receipts up to ₹2 Crores (increased to ₹3 Crores by Finance Act 2023/2024 if cash receipts are ≤ 5% of total turnover).\n- Deemed profit rate: 8% of total turnover, or 6% of turnover received through digital/bank modes.\n- Benefits: No requirement to maintain books of accounts (under Section 44AA) or get accounts audited (under Section 44AB)."
+      },
+      {
+        "heading": "Section 44ADA - Presumptive Taxation for Professionals",
+        "content": "Section 44ADA offers a presumptive taxation scheme for specified professionals (doctors, lawyers, engineers, chartered accountants, architects, etc.):\n- Eligibility: Gross receipts up to ₹50 Lakhs (increased to ₹75 Lakhs by Finance Act 2023/2024 if cash receipts are ≤ 5% of total gross receipts).\n- Deemed profit rate: 50% of the total gross receipts is considered as taxable income.\n- Benefits: No requirement to maintain books of accounts under Section 44AA or get accounts audited under Section 44AB."
+      }
+    ]
+  },
+  {
+    "title": "Capital Gains Taxation",
+    "source": "income_tax_act",
+    "chunks": [
+      {
+        "heading": "Short-Term Capital Gains (STCG) on Equity & Debt (AY 2025-26)",
+        "content": "For transactions on or after July 23, 2024 (Finance Act 2024):\n- STCG under Section 111A on listed equity shares, equity-oriented mutual funds, and business trusts subject to Securities Transaction Tax (STT) is taxed at 20% (increased from 15%).\n- STCG on debt-oriented mutual funds, market-linked debentures, and other non-equity assets is taxed at the individual's applicable slab rates (as these are classified as short-term capital gains regardless of holding period)."
+      },
+      {
+        "heading": "Long-Term Capital Gains (LTCG) on Equity & Debt (AY 2025-26)",
+        "content": "For transactions on or after July 23, 2024 (Finance Act 2024):\n- LTCG under Section 112A on listed equity shares, equity-oriented mutual funds, and business trusts is taxed at 12.5% (increased from 10%). The exemption limit for LTCG on these assets is increased to ₹1,25,000 (from ₹1,00,000) per financial year.\n- LTCG on unlisted assets (e.g., real estate, unlisted shares) is taxed at 12.5% without indexation benefit (previously 20% with indexation)."
+      }
+    ]
+  },
+  {
+    "title": "Tax Deducted at Source (TDS) provisions",
+    "source": "income_tax_act",
+    "chunks": [
+      {
+        "heading": "Key TDS Rates and Sections",
+        "content": "Common TDS sections under the Income Tax Act:\n- Section 192: TDS on salary (computed on estimated income using applicable slab rates).\n- Section 194C: TDS on payments to contractors (1% for individuals/HUFs, 2% for others).\n- Section 194J: TDS on professional/technical services (10% standard rate, 2% for royalty or technical services, 2% for call center operators).\n- Section 194I: TDS on rent (10% for land/building/furniture, 2% for machinery/plant/equipment; exemption limit is ₹2,40,000 per year).\n- Section 194DA: TDS on life insurance payouts (5% on taxable income portion if payout is not exempt under Section 10(10D))."
+      }
+    ]
+  }
+]

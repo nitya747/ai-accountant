@@ -17,10 +17,16 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const getMessageText = (m: UIMessage): string => {
-    return m.parts
-      .map((part) => (part.type === "text" ? part.text : ""))
-      .join("");
+  const getMessageText = (m: any): string => {
+    if (typeof m.content === "string" && m.content) {
+      return m.content;
+    }
+    if (Array.isArray(m.parts)) {
+      return m.parts
+        .map((part: any) => (part.type === "text" ? part.text : ""))
+        .join("");
+    }
+    return m.content || "";
   };
 
   useEffect(() => {
