@@ -52,7 +52,7 @@ function LoginForm() {
       <div className="w-full max-w-md space-y-8 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-8 backdrop-blur-xl">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-            AI Accountant
+            Corpus
           </h2>
           <p className="mt-2 text-sm text-zinc-400 font-sans">
             Sign in to your account to continue

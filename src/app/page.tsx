@@ -9,7 +9,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-              AI Accountant
+              Corpus
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -102,7 +102,7 @@ export default function Home() {
 
       <footer className="border-t border-zinc-900 bg-zinc-950 py-8 text-center text-sm text-zinc-500">
         <div className="mx-auto max-w-7xl px-4">
-          <p>© {new Date().getFullYear()} AI Accountant. Built for Indian taxpayers.</p>
+          <p>© {new Date().getFullYear()} Corpus. Built for Indian taxpayers.</p>
         </div>
       </footer>
     </div>

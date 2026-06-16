@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Accountant",
+  title: "Corpus",
   description: "Conversational tax accountant specialised for the Indian tax system.",
 };
 

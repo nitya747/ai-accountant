@@ -229,7 +229,7 @@ export async function POST(req: Request) {
       apiKey: apiKey,
       headers: {
         "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "AI Accountant",
+        "X-Title": "Corpus",
       }
     });
 

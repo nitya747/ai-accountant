@@ -82,7 +82,7 @@ export function Sidebar() {
       {/* Sidebar Header */}
       <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
         <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-          AI Accountant
+          Corpus
         </span>
         <button
           onClick={handleCreateSession}
@@ -173,7 +173,7 @@ export function Sidebar() {
           {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
         <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-          AI Accountant
+          Corpus
         </span>
         <button
           onClick={handleCreateSession}
