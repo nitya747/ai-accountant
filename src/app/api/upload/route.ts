@@ -260,6 +260,28 @@ Ensure numbers are integers. If a field is not found in the text, use 0 or "unkn
       },
     });
 
+    // Automatically update the session title if it is still a default title
+    if (dbSession && (dbSession.title === "New Chat" || dbSession.title === "New Session" || !dbSession.title)) {
+      let docTitle = `Tax Doc: ${file.name.replace(/\.[^/.]+$/, "")}`; // strip extension
+      if (extractedData && extractedData.documentType && extractedData.documentType !== "unknown") {
+        if (extractedData.employee && extractedData.employee.name && extractedData.employee.name !== "unknown") {
+          docTitle = `${extractedData.documentType} - ${extractedData.employee.name}`;
+        } else {
+          docTitle = `${extractedData.documentType} - ${file.name.replace(/\.[^/.]+$/, "")}`;
+        }
+      }
+      
+      // Ensure title is reasonably short
+      if (docTitle.length > 40) {
+        docTitle = docTitle.substring(0, 37) + "...";
+      }
+
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { title: docTitle }
+      });
+    }
+
     // Create an Assistant Message in DB with the detailed comparison
     const assistantSummary = `I have parsed your uploaded **${file.name}** (${extractedData.documentType}) and successfully ingested it into your conversation context. 
 

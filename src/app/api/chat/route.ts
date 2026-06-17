@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { searchHybrid } from "@/lib/vectorStore";
 import { formatGraphRelationships } from "@/lib/neo4j";
 import { calculateTax } from "@/lib/taxCalculator";
@@ -36,6 +36,24 @@ function getMessageContent(m: any): string {
       .join("");
   }
   return "";
+}
+
+function generateTitleFromMessage(message: string): string {
+  let title = message.trim();
+  if (title.length <= 30) {
+    return title;
+  }
+  const sentences = title.split(/[.!?\n]/);
+  let firstSentence = sentences[0].trim();
+  if (firstSentence.length > 30) {
+    firstSentence = firstSentence.substring(0, 30);
+    const lastSpace = firstSentence.lastIndexOf(" ");
+    if (lastSpace > 10) {
+      firstSentence = firstSentence.substring(0, lastSpace);
+    }
+    firstSentence += "...";
+  }
+  return firstSentence || "Chat Session";
 }
 
 export async function POST(req: Request) {
@@ -76,6 +94,42 @@ export async function POST(req: Request) {
         content: userContent,
       }
     });
+
+    // Automatically update the session title if it is still a default title
+    if (dbSession && (dbSession.title === "New Chat" || dbSession.title === "New Session" || !dbSession.title)) {
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      const isMockMode = !apiKey || apiKey === "mock-openrouter-key";
+      let generatedTitle = "";
+      if (isMockMode) {
+        generatedTitle = generateTitleFromMessage(userContent);
+      } else {
+        try {
+          const openrouterClient = createOpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: apiKey,
+          });
+          const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
+          
+          const response = await generateText({
+            model: openrouterClient(modelName),
+            prompt: `Summarize the following user query into a short, concise chat title of 3-5 words. Do not use punctuation, quotation marks, or surrounding text. Keep it clean and descriptive.\n\nQuery: ${userContent}`,
+          });
+          
+          generatedTitle = response.text.trim().replace(/['"“`’]/g, "");
+          if (!generatedTitle || generatedTitle.length > 45) {
+            generatedTitle = generateTitleFromMessage(userContent);
+          }
+        } catch (err) {
+          console.error("Failed to generate AI title:", err);
+          generatedTitle = generateTitleFromMessage(userContent);
+        }
+      }
+      
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { title: generatedTitle }
+      });
+    }
 
     // Run Hybrid RAG retrieval pipeline (semantic search + graph expansion + reranking)
     let retrievedContext = "";

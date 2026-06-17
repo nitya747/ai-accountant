@@ -38,6 +38,15 @@ export function Sidebar() {
     if (session) {
       fetchSessions();
     }
+
+    const handleSessionUpdate = () => {
+      fetchSessions();
+    };
+
+    window.addEventListener("session-updated", handleSessionUpdate);
+    return () => {
+      window.removeEventListener("session-updated", handleSessionUpdate);
+    };
   }, [session, pathname]);
 
   const handleCreateSession = async () => {

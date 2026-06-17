@@ -110,6 +110,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
 
       setUploadProgress("Analyzing document & extracting tax metrics...");
       await fetchSessionData(false);
+      window.dispatchEvent(new CustomEvent("session-updated"));
       
     } catch (err: any) {
       alert(err.message || "An error occurred during file upload.");
@@ -132,6 +133,14 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isChatStreaming]);
+
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    if (prevStatusRef.current !== "ready" && status === "ready") {
+      window.dispatchEvent(new CustomEvent("session-updated"));
+    }
+    prevStatusRef.current = status;
+  }, [status]);
 
   if (loading) {
     return (
