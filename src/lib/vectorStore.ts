@@ -51,25 +51,43 @@ export interface SearchResult {
   similarity: number;
 }
 
+const globalForExtractor = globalThis as unknown as { extractorInstance: any };
+
 export async function getEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey || apiKey === "mock-openai-key") {
-    // Return empty array for mock mode
+  try {
+    if (!globalForExtractor.extractorInstance) {
+      const { pipeline, env } = await import("@huggingface/transformers");
+      env.cacheDir = "./.cache";
+      globalForExtractor.extractorInstance = await pipeline(
+        "feature-extraction",
+        "Xenova/bge-small-en-v1.5",
+        {
+          progress_callback: (info: any) => {
+            if (info.status === "progress") {
+              console.log(`[Download Progress] ${info.file}: ${info.progress.toFixed(1)}% (${(info.loaded / 1024 / 1024).toFixed(1)}MB / ${(info.total / 1024 / 1024).toFixed(1)}MB)`);
+            } else if (info.status === "initiate") {
+              console.log(`[Download Start] ${info.file}`);
+            } else if (info.status === "done") {
+              console.log(`[Download Done] ${info.file}`);
+            } else if (info.status === "ready") {
+              console.log(`[Pipeline Ready]`);
+            }
+          }
+        }
+      );
+    }
+    const output = await globalForExtractor.extractorInstance(text, {
+      pooling: "cls",
+      normalize: true,
+    });
+    return Array.from(output.data) as number[];
+  } catch (error) {
+    console.error("Local BGE-M3 embedding generation failed:", error);
     return [];
   }
-
-  const openaiClient = createOpenAI({ apiKey });
-  const { embedding } = await embed({
-    model: openaiClient.embedding("text-embedding-3-small"),
-    value: text,
-  });
-  return embedding;
 }
 
 export async function searchSimilarity(query: string, limit: number = 5, sessionId?: string): Promise<SearchResult[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const isMockMode = !apiKey || apiKey === "mock-openai-key";
-
   const dbChunks = await prisma.chunk.findMany({
     where: {
       OR: [
@@ -84,54 +102,6 @@ export async function searchSimilarity(query: string, limit: number = 5, session
 
   if (dbChunks.length === 0) {
     return [];
-  }
-
-  if (isMockMode) {
-    // Perform keyword-based search rank
-    const queryWords = getWords(query);
-    if (queryWords.length === 0) {
-      // Fallback if no contentful words: return first N
-      return dbChunks.slice(0, limit).map((c) => ({
-        chunkId: c.id,
-        documentId: c.documentId,
-        title: c.document.title,
-        source: c.document.source,
-        content: c.content,
-        similarity: 1.0,
-      }));
-    }
-
-    const scored = dbChunks.map((chunk) => {
-      const contentWords = getWords(chunk.content);
-      const titleWords = getWords(chunk.document.title);
-      
-      let score = 0;
-      for (const qw of queryWords) {
-        // Exact match or substring match
-        if (chunk.content.toLowerCase().includes(qw)) {
-          score += 1;
-        }
-        if (chunk.document.title.toLowerCase().includes(qw)) {
-          score += 3; // Boost for matching title/sections
-        }
-      }
-
-      // Basic length normalization
-      const normalizedScore = score / (1 + Math.log(1 + contentWords.length));
-
-      return {
-        chunkId: chunk.id,
-        documentId: chunk.documentId,
-        title: chunk.document.title,
-        source: chunk.document.source,
-        content: chunk.content,
-        similarity: normalizedScore,
-      };
-    });
-
-    // Sort by score desc, filter scores > 0 if possible
-    scored.sort((a, b) => b.similarity - a.similarity);
-    return scored.slice(0, limit);
   }
 
   // Real vector search mode
@@ -163,12 +133,51 @@ export async function searchSimilarity(query: string, limit: number = 5, session
     scored.sort((a, b) => b.similarity - a.similarity);
     return scored.slice(0, limit);
   } catch (error) {
-    console.error("Vector search failed, falling back to keyword search:", error);
-    // Fallback if vector embedding fails
-    process.env.OPENAI_API_KEY = "mock-openai-key";
-    const fallbackRes = await searchSimilarity(query, limit, sessionId);
-    process.env.OPENAI_API_KEY = apiKey; // Restore
-    return fallbackRes;
+    console.warn("Vector search failed or bypassed, falling back to keyword search:", error);
+    
+    // Perform keyword-based search rank
+    const queryWords = getWords(query);
+    if (queryWords.length === 0) {
+      // Fallback if no contentful words: return first N
+      return dbChunks.slice(0, limit).map((c) => ({
+        chunkId: c.id,
+        documentId: c.documentId,
+        title: c.document.title,
+        source: c.document.source,
+        content: c.content,
+        similarity: 1.0,
+      }));
+    }
+
+    const scored = dbChunks.map((chunk) => {
+      const contentWords = getWords(chunk.content);
+      
+      let score = 0;
+      for (const qw of queryWords) {
+        // Exact match or substring match
+        if (chunk.content.toLowerCase().includes(qw)) {
+          score += 1;
+        }
+        if (chunk.document.title.toLowerCase().includes(qw)) {
+          score += 3; // Boost for matching title/sections
+        }
+      }
+
+      // Basic length normalization
+      const normalizedScore = score / (1 + Math.log(1 + contentWords.length));
+
+      return {
+        chunkId: chunk.id,
+        documentId: chunk.documentId,
+        title: chunk.document.title,
+        source: chunk.document.source,
+        content: chunk.content,
+        similarity: normalizedScore,
+      };
+    });
+
+    scored.sort((a, b) => b.similarity - a.similarity);
+    return scored.slice(0, limit);
   }
 }
 
