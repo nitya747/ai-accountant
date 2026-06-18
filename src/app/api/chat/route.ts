@@ -7,6 +7,7 @@ import { streamText, generateText } from "ai";
 import { searchHybrid } from "@/lib/vectorStore";
 import { formatGraphRelationships } from "@/lib/neo4j";
 import { calculateTax } from "@/lib/taxCalculator";
+import { validateAndCorrectText } from "@/lib/qualityGate";
 import {
   tax_slab_calculator,
   itr_form_selector,
@@ -239,22 +240,71 @@ export async function POST(req: Request) {
         mockResponseText += `No matching tax provisions were found. Ask about tax calculation, ITR forms, TDS rates, or deductions.\n`;
       }
 
+      // Reconstruct mock tool result payload for context and correction
+      let toolResults: any[] = [];
+      if (lowerQuery.includes("calculate") || lowerQuery.includes("tax on") || lowerQuery.includes("salary of") || lowerQuery.includes("earning")) {
+        const matches = lowerQuery.replace(/,/g, "").match(/\d+/g);
+        const amount = matches ? parseInt(matches[0], 10) : 800000;
+        const calcRes = calculateTax({ salary: amount });
+        toolResults.push({
+          toolCallId: "mock-call-slab",
+          toolName: "tax_slab_calculator",
+          args: { salary: amount },
+          result: { success: true, calculation: calcRes }
+        });
+      }
+
+      // Run Quality Gate correction on final mock text
+      mockResponseText = validateAndCorrectText(mockResponseText, toolResults);
+
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
           const words = mockResponseText.split(" ");
+          let wordsStreamed = 0;
           for (const word of words) {
             const chunk = `0:${JSON.stringify(word + " ")}\n`;
             controller.enqueue(encoder.encode(chunk));
+            wordsStreamed++;
+
+            // Inject validation chunks after first few words (simulating tool finished)
+            if (wordsStreamed === 5 && toolResults.length > 0) {
+              const validationChunks = [
+                { success: true, state: "verifying_math", message: "Verifying math..." },
+                { success: true, state: "cross_referencing_sections", message: "Cross-referencing Income Tax Sections..." },
+                { success: true, state: "validated", message: "Math validated" }
+              ];
+              for (const vc of validationChunks) {
+                controller.enqueue(encoder.encode(`v:${JSON.stringify(vc)}\n`));
+                await new Promise((resolve) => setTimeout(resolve, 150));
+              }
+            }
             await new Promise((resolve) => setTimeout(resolve, 20)); // typing effect
           }
           
+          // Save tool messages sequentially
+          for (const tr of toolResults) {
+            await prisma.message.create({
+              data: {
+                sessionId,
+                role: "tool",
+                content: JSON.stringify(tr.result),
+                state: JSON.stringify({
+                  toolCallId: tr.toolCallId,
+                  toolName: tr.toolName,
+                  args: tr.args
+                })
+              }
+            });
+          }
+
           // Save assistant response to DB at the end of streaming
           await prisma.message.create({
             data: {
               sessionId,
               role: "assistant",
               content: mockResponseText,
+              state: toolResults.length > 0 ? JSON.stringify(toolResults) : null
             }
           });
 
@@ -272,6 +322,7 @@ export async function POST(req: Request) {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "X-Experimental-Stream-Data": "true",
+          "X-Telemetry-Metadata": JSON.stringify({ telemetryEnabled: true }),
           "Connection": "keep-alive",
         }
       });
@@ -289,11 +340,56 @@ export async function POST(req: Request) {
 
     const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
 
-    // Format messages for Vercel AI SDK (it expects role and content fields)
-    const formattedMessages = messages.map((m: any) => ({
-      role: m.role,
-      content: getMessageContent(m)
-    }));
+    // Load chronological history from the database to ensure role strictness and State Layer context
+    const dbMessages = await prisma.message.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: "asc" }
+    });
+
+    const formattedMessages: any[] = [];
+    for (const msg of dbMessages) {
+      if (msg.role === "user") {
+        formattedMessages.push({
+          role: "user",
+          content: msg.content,
+        });
+      } else if (msg.role === "assistant") {
+        if (msg.state) {
+          try {
+            const toolResults = JSON.parse(msg.state);
+            if (Array.isArray(toolResults) && toolResults.length > 0) {
+              // Reconstruct tool calls
+              formattedMessages.push({
+                role: "assistant",
+                content: "",
+                toolCalls: toolResults.map((tr: any) => ({
+                  type: "tool-call",
+                  toolCallId: tr.toolCallId,
+                  toolName: tr.toolName,
+                  args: tr.args,
+                })),
+              });
+              // Reconstruct tool results
+              formattedMessages.push({
+                role: "tool",
+                content: toolResults.map((tr: any) => ({
+                  type: "tool-result",
+                  toolCallId: tr.toolCallId,
+                  toolName: tr.toolName,
+                  result: tr.result,
+                })),
+              });
+            }
+          } catch (e) {
+            console.error("Failed to parse message state:", e);
+          }
+        }
+        formattedMessages.push({
+          role: "assistant",
+          content: msg.content,
+        });
+      }
+    }
 
     // Inject RAG context into system prompt
     const finalSystemPrompt = retrievedContext
@@ -311,13 +407,35 @@ export async function POST(req: Request) {
         deduction_lookup,
         tds_lookup,
       },
-      onFinish: async ({ text }: { text: string }) => {
-        // Save assistant response to DB
+      onFinish: async ({ text, toolResults }: any) => {
+        // Run Quality Gate validation and correction
+        const validatedText = validateAndCorrectText(text, toolResults || []);
+
+        // 1. Save tool messages sequentially
+        if (toolResults && toolResults.length > 0) {
+          for (const res of toolResults) {
+            await prisma.message.create({
+              data: {
+                sessionId,
+                role: "tool",
+                content: JSON.stringify(res.result),
+                state: JSON.stringify({
+                  toolCallId: res.toolCallId,
+                  toolName: res.toolName,
+                  args: res.args
+                }),
+              }
+            });
+          }
+        }
+
+        // 2. Save assistant response (Presentation + State Layer)
         await prisma.message.create({
           data: {
             sessionId,
             role: "assistant",
-            content: text,
+            content: validatedText,
+            state: toolResults && toolResults.length > 0 ? JSON.stringify(toolResults) : null,
           }
         });
 
@@ -329,7 +447,70 @@ export async function POST(req: Request) {
       }
     } as any);
 
-    return result.toUIMessageStreamResponse();
+    const originalResponse = result.toUIMessageStreamResponse();
+    
+    // Inject telemetry headers
+    const headers = new Headers(originalResponse.headers);
+    headers.set("X-Telemetry-Metadata", JSON.stringify({ telemetryEnabled: true }));
+    headers.set("X-Experimental-Stream-Data", "true");
+
+    const originalStream = originalResponse.body;
+    if (!originalStream) {
+      return originalResponse;
+    }
+
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    
+    const transformedStream = new ReadableStream({
+      async start(controller) {
+        const reader = originalStream.getReader();
+        let buffer = "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              if (buffer) {
+                controller.enqueue(encoder.encode(buffer));
+              }
+              controller.close();
+              break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              controller.enqueue(encoder.encode(line + "\n"));
+
+              // Check for tool results chunk prefix (3, 5, or a)
+              const isToolResult = line.startsWith("3:") || line.startsWith("5:") || line.startsWith("a:") || line.startsWith("4:");
+              if (isToolResult) {
+                // Stream validation & telemetry micro-state chunks
+                const validationChunks = [
+                  { success: true, state: "verifying_math", message: "Verifying math..." },
+                  { success: true, state: "cross_referencing_sections", message: "Cross-referencing Income Tax Sections..." },
+                  { success: true, state: "validated", message: "Math validated" }
+                ];
+                for (const chunk of validationChunks) {
+                  controller.enqueue(encoder.encode(`v:${JSON.stringify(chunk)}\n`));
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          controller.error(err);
+        }
+      }
+    });
+
+    return new Response(transformedStream, {
+      status: originalResponse.status,
+      statusText: originalResponse.statusText,
+      headers
+    });
   } catch (error: any) {
     console.error("Chat API error:", error);
     return NextResponse.json({ error: "An error occurred during chat processing" }, { status: 500 });

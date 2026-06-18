@@ -138,6 +138,7 @@ export async function POST(req: Request) {
             sessionId: branchedSession.id,
             role: m.role,
             content: m.content,
+            state: m.state,
             createdAt: m.createdAt,
           })),
         });

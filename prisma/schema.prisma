@@ -33,8 +33,9 @@ model Session {
 model Message {
   id        String   @id @default(cuid())
   sessionId String
-  role      String   // 'user' | 'assistant' | 'system'
-  content   String
+  role      String   // 'user' | 'assistant' | 'system' | 'tool'
+  content   String   // Presentation Layer: compiled markdown text body, or raw tool output for tool messages
+  state     String?  // State Layer: structured JSON object storing explicit input arguments and output responses of every tool called during that message turn
   createdAt DateTime @default(now())
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }

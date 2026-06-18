@@ -328,11 +328,37 @@ ${calcResult.taxSavings > 0
 
 *The uploaded document has been added to the session database. You can now ask conversational questions about this document, such as "How much was my standard deduction?", or "Explain the tax refund calculation."*`;
 
+    // Save tool message sequentially
+    const docToolResult = {
+      toolCallId: "upload-call-slab",
+      toolName: "tax_slab_calculator",
+      args: {
+        salary: extractedData.financials.grossSalary,
+        section80C: extractedData.deductionsBreakdown.find((d: any) => d.section.includes("80C"))?.amount || 0,
+        section80D: extractedData.deductionsBreakdown.find((d: any) => d.section.includes("80D"))?.amount || 0,
+      },
+      result: { success: true, calculation: calcResult }
+    };
+
+    await prisma.message.create({
+      data: {
+        sessionId,
+        role: "tool",
+        content: JSON.stringify(docToolResult.result),
+        state: JSON.stringify({
+          toolCallId: docToolResult.toolCallId,
+          toolName: docToolResult.toolName,
+          args: docToolResult.args
+        })
+      }
+    });
+
     await prisma.message.create({
       data: {
         sessionId,
         role: "assistant",
         content: assistantSummary,
+        state: JSON.stringify([docToolResult]),
       },
     });
 
