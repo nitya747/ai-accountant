@@ -171,7 +171,7 @@ JSON Schema:
 Ensure numbers are integers. If a field is not found in the text, use 0 or "unknown".`;
 
         const { text } = await generateText({
-          model: openrouterClient(modelName),
+          model: openrouterClient.chat(modelName),
           system: systemPrompt,
           prompt: `Extract details from this tax document text:\n\n${parsedText}`,
         });

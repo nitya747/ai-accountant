@@ -111,7 +111,7 @@ export async function POST(req: Request) {
           const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
           
           const response = await generateText({
-            model: openrouterClient(modelName),
+            model: openrouterClient.chat(modelName),
             prompt: `Summarize the following user query into a short, concise chat title of 3-5 words. Do not use punctuation, quotation marks, or surrounding text. Keep it clean and descriptive.\n\nQuery: ${userContent}`,
           });
           
@@ -301,7 +301,7 @@ export async function POST(req: Request) {
       : CA_SYSTEM_PROMPT;
 
     const result = await streamText({
-      model: openrouterClient(modelName),
+      model: openrouterClient.chat(modelName),
       system: finalSystemPrompt,
       messages: formattedMessages,
       maxSteps: 5,
@@ -329,7 +329,7 @@ export async function POST(req: Request) {
       }
     } as any);
 
-    return result.toTextStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (error: any) {
     console.error("Chat API error:", error);
     return NextResponse.json({ error: "An error occurred during chat processing" }, { status: 500 });

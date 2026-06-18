@@ -5,7 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, User, Bot, AlertTriangle, Paperclip } from "lucide-react";
+import { Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check } from "lucide-react";
 
 export default function SessionChatPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = React.use(params);
@@ -20,6 +20,10 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const getMessageText = (m: any): string => {
     if (typeof m.content === "string" && m.content) {
@@ -59,6 +63,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
       const formatted = data.messages.map((m: any) => ({
         id: m.id,
         role: m.role as "user" | "assistant",
+        content: m.content,
         parts: [{ type: "text", text: m.content }],
       }));
       setInitialMessages(formatted);
@@ -120,6 +125,56 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleCopy = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy text:", err);
+    }
+  };
+
+  const handleStartEdit = (messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent("");
+  };
+
+  const handleSaveEdit = async (messageId: string) => {
+    if (!editingContent.trim() || isChatStreaming) return;
+
+    try {
+      const targetIndex = messages.findIndex((m) => m.id === messageId);
+      if (targetIndex === -1) return;
+
+      setLoading(true);
+
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editingContent }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to edit prompt");
+      }
+
+      const updatedLocalMessages = messages.slice(0, targetIndex);
+      setEditingMessageId(null);
+      setMessages(updatedLocalMessages);
+      sendMessage({ role: "user", parts: [{ type: "text", text: editingContent }] });
+    } catch (err: any) {
+      alert(err.message || "An error occurred while editing the prompt.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -204,7 +259,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             return (
               <div
                 key={m.id}
-                className={`flex gap-4 max-w-3xl ${isUser ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                className={`flex gap-4 max-w-3xl group relative ${isUser ? "ml-auto flex-row-reverse" : "mr-auto"}`}
               >
                 {/* Avatar */}
                 <div
@@ -217,32 +272,86 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                   {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                 </div>
 
-                {/* Content */}
-                <div
-                  className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                    isUser
-                      ? "bg-zinc-800 text-zinc-100"
-                      : "bg-zinc-900/40 border border-zinc-850 text-zinc-200"
-                  }`}
-                >
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap font-sans">{getMessageText(m)}</div>
-                  ) : (
-                    <div className="font-sans select-text space-y-2">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-emerald-400">{children}</strong>,
-                          ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{children}</a>,
-                          code: ({ children }) => <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-350">{children}</code>,
-                        }}
+                {/* Content Container */}
+                <div className="flex flex-col gap-1 max-w-full">
+                  <div
+                    className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                      isUser
+                        ? "bg-zinc-800 text-zinc-100"
+                        : "bg-zinc-900/40 border border-zinc-850 text-zinc-200"
+                    }`}
+                  >
+                    {isUser ? (
+                      editingMessageId === m.id ? (
+                        <div className="space-y-2 min-w-[240px]">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-750 rounded-lg p-2 text-zinc-100 text-sm focus:outline-none focus:border-emerald-500 font-sans resize-none"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-2 text-xs">
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              className="px-2 py-1 rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-650 transition-all cursor-pointer font-sans"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEdit(m.id)}
+                              disabled={!editingContent.trim() || isChatStreaming}
+                              className="px-2 py-1 rounded bg-emerald-500 text-zinc-950 font-medium hover:bg-emerald-400 disabled:opacity-50 transition-all cursor-pointer font-sans"
+                            >
+                              Save & Submit
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap font-sans">{getMessageText(m)}</div>
+                      )
+                    ) : (
+                      <div className="font-sans select-text space-y-2">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+                            strong: ({ children }) => <strong className="font-semibold text-emerald-400">{children}</strong>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
+                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{children}</a>,
+                            code: ({ children }) => <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-350">{children}</code>,
+                          }}
+                        >
+                          {getMessageText(m)}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+
+                  {isUser && !editingMessageId && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-end gap-1 px-1 h-5">
+                      <button
+                        onClick={() => handleCopy(getMessageText(m), m.id)}
+                        className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                        title="Copy Prompt"
                       >
-                        {getMessageText(m)}
-                      </ReactMarkdown>
+                        {copiedMessageId === m.id ? (
+                          <Check className="h-3 w-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleStartEdit(m.id, getMessageText(m))}
+                        className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                        title="Edit Prompt"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
                     </div>
                   )}
                 </div>
