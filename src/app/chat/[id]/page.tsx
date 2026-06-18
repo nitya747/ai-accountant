@@ -26,6 +26,8 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -73,6 +75,39 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
       }
     };
   }, []);
+
+  // Focus and auto-resize editing textarea when message starts editing
+  useEffect(() => {
+    if (editingMessageId && editTextareaRef.current) {
+      const el = editTextareaRef.current;
+      el.focus();
+      // Position cursor at the end of text
+      const valLength = el.value.length;
+      el.setSelectionRange(valLength, valLength);
+      // Adjust height to match content size
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [editingMessageId]);
+
+  const handleEditingContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setEditingContent(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  const handleEditingKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, messageId: string) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (editingContent.trim() && !isChatStreaming) {
+        handleSaveEdit(messageId);
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancelEdit();
+    }
+  };
 
   const handleListen = (text: string, messageId: string) => {
     if (typeof window === "undefined") return;
@@ -407,42 +442,28 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                 </div>
 
                 {/* Content Container */}
-                <div className="flex flex-col gap-1 max-w-full">
+                <div className="flex flex-col gap-2 max-w-full">
                   <div
-                    className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                      isUser
-                        ? "bg-zinc-800 text-zinc-100"
-                        : "bg-zinc-900/40 border border-zinc-850 text-zinc-200"
-                    }`}
+                    className={
+                      editingMessageId === m.id
+                        ? "rounded-[2rem] px-6 py-4.5 text-sm shadow-md bg-zinc-900/60 border border-emerald-500 transition-all duration-300 w-full min-w-[300px] sm:min-w-[480px]"
+                        : `rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                            isUser
+                              ? "bg-zinc-800 text-zinc-100"
+                              : "bg-zinc-900/40 border border-zinc-850 text-zinc-200"
+                          }`
+                    }
                   >
                     {isUser ? (
                       editingMessageId === m.id ? (
-                        <div className="space-y-2 min-w-[240px]">
-                          <textarea
-                            value={editingContent}
-                            onChange={(e) => setEditingContent(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-750 rounded-lg p-2 text-zinc-100 text-sm focus:outline-none focus:border-emerald-500 font-sans resize-none"
-                            rows={3}
-                            autoFocus
-                          />
-                          <div className="flex justify-end gap-2 text-xs">
-                            <button
-                              type="button"
-                              onClick={handleCancelEdit}
-                              className="px-2 py-1 rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-650 transition-all cursor-pointer font-sans"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEdit(m.id)}
-                              disabled={!editingContent.trim() || isChatStreaming}
-                              className="px-2 py-1 rounded bg-emerald-500 text-zinc-950 font-medium hover:bg-emerald-400 disabled:opacity-50 transition-all cursor-pointer font-sans"
-                            >
-                              Save & Submit
-                            </button>
-                          </div>
-                        </div>
+                        <textarea
+                          ref={editTextareaRef}
+                          value={editingContent}
+                          onChange={handleEditingContentChange}
+                          onKeyDown={(e) => handleEditingKeyDown(e, m.id)}
+                          className="w-full bg-transparent border-0 p-0 text-zinc-100 text-sm focus:outline-none focus:ring-0 font-sans resize-none overflow-hidden"
+                          autoFocus
+                        />
                       ) : (
                         <div className="whitespace-pre-wrap font-sans">{getMessageText(m)}</div>
                       )
@@ -491,6 +512,26 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                       </div>
                     )}
                   </div>
+
+                  {isUser && editingMessageId === m.id && (
+                    <div className="flex justify-end items-center gap-4 text-sm mt-1.5 px-3">
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="text-zinc-300 hover:text-white transition-colors cursor-pointer font-sans font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEdit(m.id)}
+                        disabled={!editingContent.trim() || isChatStreaming}
+                        className="px-5.5 py-1.5 rounded-full bg-zinc-850 text-zinc-300 hover:bg-zinc-750 hover:text-white disabled:text-zinc-500 disabled:bg-zinc-900/40 disabled:border-zinc-800/40 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-800 transition-all cursor-pointer font-sans font-medium shadow-sm"
+                      >
+                        Update
+                      </button>
+                    </div>
+                  )}
 
                   {isUser && !editingMessageId ? (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-end gap-1 px-1 h-5">
