@@ -8,7 +8,8 @@ import remarkGfm from "remark-gfm";
 import { 
   Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check,
   ThumbsUp, ThumbsDown, MoreHorizontal, GitBranch, Volume2, VolumeX,
-  FileText, Mail, Flag, Link as LinkIcon, Workflow, Loader2, X 
+  FileText, Mail, Flag, Link as LinkIcon, Workflow, Loader2, X,
+  Search, Database, Cpu
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -206,11 +207,76 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     return m.content || "";
   };
 
+  const getThinkingSteps = (m: any): string[] => {
+    const steps: string[] = ["Parsed user query parameters and context values."];
+    let toolResults: any[] = [];
+    if (m.state) {
+      try {
+        toolResults = JSON.parse(m.state);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    if (Array.isArray(toolResults) && toolResults.length > 0) {
+      let hasCalc = false;
+      let hasItr = false;
+      let hasDed = false;
+      let hasTds = false;
+
+      toolResults.forEach((tr: any) => {
+        const toolName = tr.toolName || (tr.state ? JSON.parse(tr.state).toolName : null);
+        if (toolName === "tax_slab_calculator") hasCalc = true;
+        if (toolName === "itr_form_selector") hasItr = true;
+        if (toolName === "deduction_lookup") hasDed = true;
+        if (toolName === "tds_lookup") hasTds = true;
+      });
+
+      if (hasCalc) {
+        steps.push("Queried reference database for marginal rates vs flat regime slabs.");
+        steps.push("Executed tax_slab_calculator to compute precise taxable income.");
+        steps.push("Compared Old Regime vs. New Regime tax liabilities (87A rebate, cess).");
+      }
+      if (hasItr) {
+        steps.push("Analyzed income streams (salary, capital gains, presumptive business).");
+        steps.push("Executed itr_form_selector to identify correct tax return form.");
+        steps.push("Validated threshold requirements and filing conditions.");
+      }
+      if (hasDed) {
+        steps.push("Searched Chapter VI-A deductions (80C, 80D, 24b) for user profile.");
+        steps.push("Executed deduction_lookup to check regime eligibility rules.");
+      }
+      if (hasTds) {
+        steps.push("Searched Income Tax Act sections for TDS rates and threshold limits.");
+        steps.push("Executed tds_lookup to find withholding rates for specified transaction type.");
+      }
+    } else {
+      const content = (m.content || "").toLowerCase();
+      if (content.includes("regime") || content.includes("tax") || content.includes("calculate") || content.includes("lakh") || content.includes("thousand")) {
+        steps.push("Queried reference database for marginal tax rates and flat regime slabs.");
+        steps.push("Analyzed standard deduction rules for the default Assessment Year.");
+      } else if (content.includes("itr") || content.includes("form") || content.includes("return")) {
+        steps.push("Analyzed income streams and compliance thresholds.");
+        steps.push("Identified correct ITR forms under the Income Tax rules.");
+      } else if (content.includes("deduction") || content.includes("exemption") || content.includes("80c") || content.includes("80d")) {
+        steps.push("Queried Chapter VI-A deduction limits and regime exclusions.");
+      } else if (content.includes("tds") || content.includes("withholding")) {
+        steps.push("Searched Income Tax Act sections for TDS rates and threshold limits.");
+      } else {
+        steps.push("Queried reference database (Income Tax Act & Rules).");
+      }
+    }
+
+    steps.push("Cross-referenced calculations with the latest CBDT circulars and guidelines.");
+    steps.push("Formulated step-by-step Chartered Accountant guidance and recommendations.");
+    return steps;
+  };
+
   const [input, setInput] = useState("");
 
   // Telemetry loading micro-states
   const [telemetryState, setTelemetryState] = useState<{
-    state: "idle" | "verifying_math" | "cross_referencing_sections" | "validated";
+    state: "idle" | "thinking" | "searching_db" | "searching_web" | "analyzing" | "calculating" | "verifying_math" | "cross_referencing_sections" | "validated";
     message: string;
   }>({ state: "idle", message: "" });
 
@@ -299,6 +365,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
         role: m.role,
         content: m.content,
         parts: [{ type: "text", text: m.content }],
+        state: m.state,
       }));
       setInitialMessages(formatted);
       setMessages(formatted);
@@ -543,22 +610,12 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                               Thinking Steps
                             </div>
                             <div className="space-y-1.5 border-l border-zinc-800 pl-3">
-                              <div className="flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                <span>Parsed user query parameters and context values.</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                <span>Queried reference database (Income Tax Act & Rules).</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                <span>Calculated marginal rates vs. flat regime slabs.</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                <span>Verified tax-saving exemption limits and guidelines.</span>
-                              </div>
+                              {getThinkingSteps(m).map((step, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span>{step}</span>
+                                </div>
+                              ))}
                             </div>
                           </div>
                         )}
@@ -619,9 +676,18 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                         </ReactMarkdown>
 
                         {isChatStreaming && m.role === "assistant" && m.id === messages[messages.length - 1]?.id && telemetryState.state !== "idle" && (
-                          <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-400 font-sans border border-zinc-850 bg-zinc-900/40 px-3 py-1.5 rounded-xl w-fit transition-all duration-300 animate-fade-in shadow-md">
-                            <span className={`w-1.5 h-1.5 rounded-full ${telemetryState.state === 'validated' ? 'bg-emerald-500' : 'bg-violet-400 animate-pulse'}`} />
-                            <span className="font-semibold tracking-wide">{telemetryState.message}</span>
+                          <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-400 font-sans border border-zinc-850 bg-zinc-900/40 px-3.5 py-2 rounded-xl w-fit transition-all duration-300 animate-fade-in shadow-md">
+                            {telemetryState.state === "validated" ? (
+                              <Check className="h-3 w-3 text-emerald-400 shrink-0 animate-scale-in" />
+                            ) : (
+                              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-500"></span>
+                              </span>
+                            )}
+                            <span className={`font-semibold tracking-wide ${telemetryState.state === 'validated' ? 'text-emerald-400 font-bold' : 'text-zinc-350'}`}>
+                              {telemetryState.message}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -814,6 +880,91 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             );
           })
         )}
+
+        {/* Placeholder assistant bubble when streaming is active but assistant message is not yet added */}
+        {isChatStreaming && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+          <div className="flex gap-4 max-w-3xl mr-auto animate-fade-in">
+            {/* Avatar */}
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border bg-emerald-950/40 border-emerald-900/40 text-emerald-400">
+              <Bot className="h-4 w-4 animate-pulse" />
+            </div>
+
+            {/* Content Container */}
+            <div className="flex flex-col gap-2 max-w-full">
+              <div className="rounded-2xl px-5 py-4 text-sm shadow-lg bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800/80 text-zinc-300 min-w-[280px] max-w-sm space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute inset-0 bg-emerald-500/20 rounded-full animate-ping" />
+                    <div className="h-6 w-6 rounded-full bg-emerald-950 border border-emerald-500/30 flex items-center justify-center">
+                      {telemetryState.state === "searching_db" || telemetryState.state === "searching_web" ? (
+                        <Search className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : telemetryState.state === "analyzing" ? (
+                        <Cpu className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-zinc-200 text-xs">AI Assistant is active</h4>
+                    <p className="text-[11px] text-zinc-400 font-medium mt-0.5">{telemetryState.message || "Thinking..."}</p>
+                  </div>
+                </div>
+
+                {/* Sub-steps status list */}
+                <div className="pt-2 border-t border-zinc-850 space-y-2 text-[11px] text-zinc-500">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      telemetryState.state === "thinking" 
+                        ? "bg-violet-400 animate-pulse" 
+                        : "bg-emerald-500"
+                    }`} />
+                    <span className={telemetryState.state === "thinking" ? "text-zinc-300 font-medium" : "text-zinc-650"}>
+                      Analyzing question context
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      telemetryState.state === "searching_db" || telemetryState.state === "searching_web"
+                        ? "bg-violet-400 animate-pulse"
+                        : (telemetryState.state === "thinking" || telemetryState.state === "idle")
+                          ? "bg-zinc-800"
+                          : "bg-emerald-500"
+                    }`} />
+                    <span className={
+                      telemetryState.state === "searching_db" || telemetryState.state === "searching_web"
+                        ? "text-zinc-300 font-medium" 
+                        : (telemetryState.state === "thinking" || telemetryState.state === "idle")
+                          ? "text-zinc-650"
+                          : "text-zinc-550"
+                    }>
+                      {telemetryState.state === "searching_web" ? "Searching the web for latest laws" : "Retrieving relevant tax provisions"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                      telemetryState.state === "analyzing"
+                        ? "bg-violet-400 animate-pulse"
+                        : (telemetryState.state === "thinking" || telemetryState.state === "searching_db" || telemetryState.state === "searching_web" || telemetryState.state === "idle")
+                          ? "bg-zinc-800"
+                          : "bg-emerald-500"
+                    }`} />
+                    <span className={
+                      telemetryState.state === "analyzing"
+                        ? "text-zinc-300 font-medium"
+                        : (telemetryState.state === "thinking" || telemetryState.state === "searching_db" || telemetryState.state === "searching_web" || telemetryState.state === "idle")
+                          ? "text-zinc-650"
+                          : "text-zinc-550"
+                    }>
+                      Synthesizing responses
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 

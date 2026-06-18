@@ -14,6 +14,29 @@ import {
   deduction_lookup,
   tds_lookup,
 } from "@/lib/taxTools";
+import fs from "fs";
+import path from "path";
+
+function logErrorToFile(error: any, context: string) {
+  try {
+    const logPath = path.join(process.cwd(), "scripts", "error.log");
+    const timestamp = new Date().toISOString();
+    const errorMessage = `${timestamp} [${context}]: ${error?.message || error}\nStack: ${error?.stack || ""}\n\n`;
+    fs.appendFileSync(logPath, errorMessage);
+  } catch (e) {
+    console.error("Failed to write to error log file", e);
+  }
+}
+
+function logDebugToFile(message: string) {
+  try {
+    const logPath = path.join(process.cwd(), "scripts", "debug.log");
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
+  } catch (e) {
+    console.error("Failed to write to debug log file", e);
+  }
+}
 
 const CA_SYSTEM_PROMPT = `You are a knowledgeable and professional Indian Chartered Accountant (CA).
 Your expertise covers:
@@ -132,22 +155,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Run Hybrid RAG retrieval pipeline (semantic search + graph expansion + reranking)
-    let retrievedContext = "";
-    try {
-      const { chunks, relationships } = await searchHybrid(userContent, 10, 4, sessionId);
-      
-      const chunkContext = chunks
-        .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
-        .join("\n\n---\n\n");
-
-      const graphContext = formatGraphRelationships(relationships);
-      
-      retrievedContext = [chunkContext, graphContext].filter(Boolean).join("\n\n---\n\n");
-    } catch (err) {
-      console.error("Failed to retrieve hybrid tax context:", err);
-    }
-
     const apiKey = process.env.OPENROUTER_API_KEY;
     const isMockMode = !apiKey || apiKey === "mock-openrouter-key";
 
@@ -234,8 +241,6 @@ export async function POST(req: Request) {
         dedRes.deductions.forEach((d: any) => {
           mockResponseText += `| **${d.section}** | ${d.oldRegime} | ${d.newRegime} | ${d.description} |\n`;
         });
-      } else if (retrievedContext) {
-        mockResponseText += `Based on your query, here are the relevant tax provisions retrieved:\n\n---\n\n${retrievedContext}\n\n---\n\n`;
       } else {
         mockResponseText += `No matching tax provisions were found. Ask about tax calculation, ITR forms, TDS rates, or deductions.\n`;
       }
@@ -260,61 +265,98 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
         async start(controller) {
-          const words = mockResponseText.split(" ");
-          let wordsStreamed = 0;
-          for (const word of words) {
-            const chunk = `0:${JSON.stringify(word + " ")}\n`;
-            controller.enqueue(encoder.encode(chunk));
-            wordsStreamed++;
-
-            // Inject validation chunks after first few words (simulating tool finished)
-            if (wordsStreamed === 5 && toolResults.length > 0) {
-              const validationChunks = [
-                { success: true, state: "verifying_math", message: "Verifying math..." },
-                { success: true, state: "cross_referencing_sections", message: "Cross-referencing Income Tax Sections..." },
-                { success: true, state: "validated", message: "Math validated" }
-              ];
-              for (const vc of validationChunks) {
-                controller.enqueue(encoder.encode(`v:${JSON.stringify(vc)}\n`));
-                await new Promise((resolve) => setTimeout(resolve, 150));
-              }
+          try {
+            logDebugToFile("Mock mode stream started");
+            // Determine query-specific search states
+            const lowerQ = userContent.toLowerCase();
+            let searchMessage = "Searching tax database & context...";
+            let searchState = "searching_db";
+            
+            if (lowerQ.includes("latest") || lowerQ.includes("recent") || lowerQ.includes("update") || lowerQ.includes("news") || lowerQ.includes("web") || lowerQ.includes("amendment") || lowerQ.includes("2026")) {
+              searchMessage = "Searching the web for latest tax updates...";
+              searchState = "searching_web";
+            } else if (lowerQ.includes("calculate") || lowerQ.includes("tax on") || lowerQ.includes("salary")) {
+              searchMessage = "Searching tax database for slab rates...";
+            } else if (lowerQ.includes("itr") || lowerQ.includes("form")) {
+              searchMessage = "Searching tax database for ITR forms...";
+            } else if (lowerQ.includes("tds")) {
+              searchMessage = "Searching tax database for TDS sections...";
             }
-            await new Promise((resolve) => setTimeout(resolve, 20)); // typing effect
-          }
-          
-          // Save tool messages sequentially
-          for (const tr of toolResults) {
+
+            const initialStates = [
+              { success: true, state: "thinking", message: "Thinking..." },
+              { success: true, state: searchState, message: searchMessage },
+              { success: true, state: "analyzing", message: "Analyzing tax regulations..." }
+            ];
+
+            for (const stateObj of initialStates) {
+              controller.enqueue(encoder.encode(`v:${JSON.stringify(stateObj)}\n`));
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            }
+
+            const words = mockResponseText.split(" ");
+            let wordsStreamed = 0;
+            for (const word of words) {
+              const chunk = `0:${JSON.stringify(word + " ")}\n`;
+              controller.enqueue(encoder.encode(chunk));
+              wordsStreamed++;
+
+              // Inject validation chunks after first few words (simulating tool finished)
+              if (wordsStreamed === 5 && toolResults.length > 0) {
+                const validationChunks = [
+                  { success: true, state: "verifying_math", message: "Verifying math..." },
+                  { success: true, state: "cross_referencing_sections", message: "Cross-referencing Income Tax Sections..." },
+                  { success: true, state: "validated", message: "Math validated" }
+                ];
+                for (const vc of validationChunks) {
+                  controller.enqueue(encoder.encode(`v:${JSON.stringify(vc)}\n`));
+                  await new Promise((resolve) => setTimeout(resolve, 150));
+                }
+              }
+              await new Promise((resolve) => setTimeout(resolve, 20)); // typing effect
+            }
+            
+            // Save tool messages sequentially
+            for (const tr of toolResults) {
+              logDebugToFile(`Mock mode saving tool: ${tr.toolName}`);
+              await prisma.message.create({
+                data: {
+                  sessionId,
+                  role: "tool",
+                  content: JSON.stringify(tr.result),
+                  state: JSON.stringify({
+                    toolCallId: tr.toolCallId,
+                    toolName: tr.toolName,
+                    args: tr.args
+                  })
+                }
+              });
+            }
+
+            // Save assistant response to DB at the end of streaming
+            logDebugToFile("Mock mode saving assistant response to database");
             await prisma.message.create({
               data: {
                 sessionId,
-                role: "tool",
-                content: JSON.stringify(tr.result),
-                state: JSON.stringify({
-                  toolCallId: tr.toolCallId,
-                  toolName: tr.toolName,
-                  args: tr.args
-                })
+                role: "assistant",
+                content: mockResponseText,
+                state: toolResults.length > 0 ? JSON.stringify(toolResults) : null
               }
             });
+
+            // Update session timestamp
+            await prisma.session.update({
+              where: { id: sessionId },
+              data: { updatedAt: new Date() }
+            });
+
+            logDebugToFile("Mock mode stream execution finished successfully");
+            controller.close();
+          } catch (err: any) {
+            console.error("Mock mode stream execution error:", err);
+            logErrorToFile(err, "mock_mode_stream");
+            controller.close();
           }
-
-          // Save assistant response to DB at the end of streaming
-          await prisma.message.create({
-            data: {
-              sessionId,
-              role: "assistant",
-              content: mockResponseText,
-              state: toolResults.length > 0 ? JSON.stringify(toolResults) : null
-            }
-          });
-
-          // Update session timestamp
-          await prisma.session.update({
-            where: { id: sessionId },
-            data: { updatedAt: new Date() }
-          });
-
-          controller.close();
         }
       });
 
@@ -391,89 +433,146 @@ export async function POST(req: Request) {
       }
     }
 
-    // Inject RAG context into system prompt
-    const finalSystemPrompt = retrievedContext
-      ? `${CA_SYSTEM_PROMPT}\n\nHere is the most relevant tax database context retrieved for the user's query:\n${retrievedContext}\n\nGuidelines:\n- Rely on the retrieved context to answer the query accurately.\n- If the context does not contain the answer, use your pre-trained knowledge but mention that it is based on general tax understanding.`
-      : CA_SYSTEM_PROMPT;
-
-    const result = await streamText({
-      model: openrouterClient.chat(modelName),
-      system: finalSystemPrompt,
-      messages: formattedMessages,
-      maxSteps: 5,
-      tools: {
-        tax_slab_calculator,
-        itr_form_selector,
-        deduction_lookup,
-        tds_lookup,
-      },
-      onFinish: async ({ text, toolResults }: any) => {
-        // Run Quality Gate validation and correction
-        const validatedText = validateAndCorrectText(text, toolResults || []);
-
-        // 1. Save tool messages sequentially
-        if (toolResults && toolResults.length > 0) {
-          for (const res of toolResults) {
-            await prisma.message.create({
-              data: {
-                sessionId,
-                role: "tool",
-                content: JSON.stringify(res.result),
-                state: JSON.stringify({
-                  toolCallId: res.toolCallId,
-                  toolName: res.toolName,
-                  args: res.args
-                }),
-              }
-            });
-          }
-        }
-
-        // 2. Save assistant response (Presentation + State Layer)
-        await prisma.message.create({
-          data: {
-            sessionId,
-            role: "assistant",
-            content: validatedText,
-            state: toolResults && toolResults.length > 0 ? JSON.stringify(toolResults) : null,
-          }
-        });
-
-        // Update session timestamp
-        await prisma.session.update({
-          where: { id: sessionId },
-          data: { updatedAt: new Date() }
-        });
-      }
-    } as any);
-
-    const originalResponse = result.toUIMessageStreamResponse();
-    
-    // Inject telemetry headers
-    const headers = new Headers(originalResponse.headers);
-    headers.set("X-Telemetry-Metadata", JSON.stringify({ telemetryEnabled: true }));
-    headers.set("X-Experimental-Stream-Data", "true");
-
-    const originalStream = originalResponse.body;
-    if (!originalStream) {
-      return originalResponse;
-    }
-
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    
+
     const transformedStream = new ReadableStream({
       async start(controller) {
-        const reader = originalStream.getReader();
-        let buffer = "";
         try {
+          // Determine query-specific search states
+          const lowerQ = userContent.toLowerCase();
+          let searchMessage = "Searching tax database & context...";
+          let searchState = "searching_db";
+          
+          if (lowerQ.includes("latest") || lowerQ.includes("recent") || lowerQ.includes("update") || lowerQ.includes("news") || lowerQ.includes("web") || lowerQ.includes("amendment") || lowerQ.includes("2026")) {
+            searchMessage = "Searching the web for latest tax updates...";
+            searchState = "searching_web";
+          } else if (lowerQ.includes("calculate") || lowerQ.includes("tax on") || lowerQ.includes("salary")) {
+            searchMessage = "Searching tax database for slab rates...";
+          } else if (lowerQ.includes("itr") || lowerQ.includes("form")) {
+            searchMessage = "Searching tax database for ITR forms...";
+          } else if (lowerQ.includes("tds")) {
+            searchMessage = "Searching tax database for TDS sections...";
+          }
+
+          controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "thinking", message: "Thinking..." })}\n`));
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          
+          controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: searchState, message: searchMessage })}\n`));
+
+          // Run Hybrid RAG retrieval pipeline (semantic search + graph expansion + reranking)
+          let retrievedContext = "";
+          try {
+            logDebugToFile("Standard stream: starting RAG retrieval");
+            const { chunks, relationships } = await searchHybrid(userContent, 10, 4, sessionId);
+            
+            const chunkContext = chunks
+              .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
+              .join("\n\n---\n\n");
+
+            const graphContext = formatGraphRelationships(relationships);
+            
+            retrievedContext = [chunkContext, graphContext].filter(Boolean).join("\n\n---\n\n");
+          } catch (err) {
+            console.error("Failed to retrieve hybrid tax context:", err);
+          }
+
+          controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "analyzing", message: "Analyzing tax regulations..." })}\n`));
+          await new Promise((resolve) => setTimeout(resolve, 200));
+
+          // Inject RAG context into system prompt
+          const finalSystemPrompt = retrievedContext
+            ? `${CA_SYSTEM_PROMPT}\n\nHere is the most relevant tax database context retrieved for the user's query:\n${retrievedContext}\n\nGuidelines:\n- Rely on the retrieved context to answer the query accurately.\n- If the context does not contain the answer, use your pre-trained knowledge but mention that it is based on general tax understanding.`
+            : CA_SYSTEM_PROMPT;
+
+          let resolveFinish: () => void = () => {};
+          const onFinishPromise = new Promise<void>((resolve) => {
+            resolveFinish = resolve;
+          });
+
+          logDebugToFile("Standard stream: invoking streamText");
+          const result = await streamText({
+            model: openrouterClient.chat(modelName),
+            system: finalSystemPrompt,
+            messages: formattedMessages,
+            maxSteps: 5,
+            tools: {
+              tax_slab_calculator,
+              itr_form_selector,
+              deduction_lookup,
+              tds_lookup,
+            },
+            onFinish: async ({ text, toolResults }: any) => {
+              try {
+                logDebugToFile(`Standard stream: onFinish started. Text length: ${text?.length}, Tools: ${toolResults?.length || 0}`);
+                // Run Quality Gate validation and correction
+                const validatedText = validateAndCorrectText(text, toolResults || []);
+
+                // 1. Save tool messages sequentially
+                if (toolResults && toolResults.length > 0) {
+                  for (const res of toolResults) {
+                    logDebugToFile(`Standard stream: saving tool response for ${res.toolName}`);
+                    await prisma.message.create({
+                      data: {
+                        sessionId,
+                        role: "tool",
+                        content: JSON.stringify(res.result),
+                        state: JSON.stringify({
+                          toolCallId: res.toolCallId,
+                          toolName: res.toolName,
+                          args: res.args
+                        }),
+                      }
+                    });
+                  }
+                }
+
+                // 2. Save assistant response (Presentation + State Layer)
+                logDebugToFile("Standard stream: saving assistant response to database");
+                await prisma.message.create({
+                  data: {
+                    sessionId,
+                    role: "assistant",
+                    content: validatedText,
+                    state: toolResults && toolResults.length > 0 ? JSON.stringify(toolResults) : null,
+                  }
+                });
+
+                // Update session timestamp
+                await prisma.session.update({
+                  where: { id: sessionId },
+                  data: { updatedAt: new Date() }
+                });
+                logDebugToFile("Standard stream: onFinish database save completed successfully");
+              } catch (e) {
+                console.error("Error in standard onFinish:", e);
+                logErrorToFile(e, "standard_onFinish");
+              } finally {
+                resolveFinish();
+              }
+            }
+          } as any);
+
+          const originalResponse = result.toUIMessageStreamResponse();
+          const originalStream = originalResponse.body;
+          if (!originalStream) {
+            resolveFinish();
+            throw new Error("Failed to get stream from streamText");
+          }
+
+          const reader = originalStream.getReader();
+          let buffer = "";
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
+              logDebugToFile("Standard stream: reader loop done=true. Awaiting onFinishPromise...");
               if (buffer) {
                 controller.enqueue(encoder.encode(buffer));
               }
-              controller.close();
+              // Wait for db save to complete before closing the stream
+              await onFinishPromise;
+              logDebugToFile("Standard stream: onFinishPromise resolved. Closing controller.");
               break;
             }
 
@@ -487,6 +586,10 @@ export async function POST(req: Request) {
               // Check for tool results chunk prefix (3, 5, or a)
               const isToolResult = line.startsWith("3:") || line.startsWith("5:") || line.startsWith("a:") || line.startsWith("4:");
               if (isToolResult) {
+                logDebugToFile("Standard stream: detected tool results in stream line");
+                // Stream tool running state
+                controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "calculating", message: "Running tax tools & calculators..." })}\n`));
+
                 // Stream validation & telemetry micro-state chunks
                 const validationChunks = [
                   { success: true, state: "verifying_math", message: "Verifying math..." },
@@ -500,16 +603,23 @@ export async function POST(req: Request) {
               }
             }
           }
-        } catch (err) {
-          controller.error(err);
+          controller.close();
+        } catch (err: any) {
+          console.error("Stream execution error:", err);
+          logErrorToFile(err, "standard_stream_error");
+          controller.enqueue(encoder.encode(`0:${JSON.stringify("An error occurred while generating the answer. Please try again.")}\n`));
+          controller.close();
         }
       }
     });
 
     return new Response(transformedStream, {
-      status: originalResponse.status,
-      statusText: originalResponse.statusText,
-      headers
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Experimental-Stream-Data": "true",
+        "X-Telemetry-Metadata": JSON.stringify({ telemetryEnabled: true }),
+        "Connection": "keep-alive",
+      }
     });
   } catch (error: any) {
     console.error("Chat API error:", error);
