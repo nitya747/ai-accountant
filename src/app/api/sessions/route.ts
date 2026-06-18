@@ -92,11 +92,58 @@ export async function POST(req: Request) {
 
     const userId = (session.user as any).id;
     let title = "New Session";
+    let parentSessionId: string | undefined;
+    let upToMessageId: string | undefined;
+
     try {
       const body = await req.json();
       if (body.title) title = body.title;
+      parentSessionId = body.parentSessionId;
+      upToMessageId = body.upToMessageId;
     } catch {
       // Body empty or invalid
+    }
+
+    if (parentSessionId && upToMessageId) {
+      const parentSession = await prisma.session.findFirst({
+        where: { id: parentSessionId, userId },
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+
+      if (!parentSession) {
+        return NextResponse.json({ error: "Parent session not found" }, { status: 404 });
+      }
+
+      const targetIndex = parentSession.messages.findIndex((m) => m.id === upToMessageId);
+      if (targetIndex === -1) {
+        return NextResponse.json({ error: "Message not found in parent session" }, { status: 404 });
+      }
+
+      const branchTitle = title !== "New Session" ? title : `Branch of ${parentSession.title || "Chat"}`;
+      const branchedSession = await prisma.session.create({
+        data: {
+          userId,
+          title: branchTitle,
+        },
+      });
+
+      const messagesToCopy = parentSession.messages.slice(0, targetIndex + 1);
+      if (messagesToCopy.length > 0) {
+        await prisma.message.createMany({
+          data: messagesToCopy.map((m) => ({
+            sessionId: branchedSession.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          })),
+        });
+      }
+
+      return NextResponse.json(branchedSession, { status: 201 });
     }
 
     const chatSession = await prisma.session.create({

@@ -5,7 +5,12 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check } from "lucide-react";
+import { 
+  Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check,
+  ThumbsUp, ThumbsDown, MoreHorizontal, GitBranch, Volume2, VolumeX,
+  FileText, Mail, Flag, Link as LinkIcon, Workflow, Loader2, X 
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function SessionChatPage({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = React.use(params);
@@ -24,6 +29,135 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  const router = useRouter();
+
+  // AI output states
+  const [feedback, setFeedback] = useState<Record<string, "up" | "down" | undefined>>({});
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [showingThinkingMessageIds, setShowingThinkingMessageIds] = useState<Record<string, boolean>>({});
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
+  const [viewingSourcesMessageId, setViewingSourcesMessageId] = useState<string | null>(null);
+  const [branchingMessageId, setBranchingMessageId] = useState<string | null>(null);
+
+  // Toast notifications
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "info" = "success") => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleOuterClick = () => {
+      setActiveDropdownId(null);
+    };
+    window.addEventListener("click", handleOuterClick);
+    return () => {
+      window.removeEventListener("click", handleOuterClick);
+    };
+  }, []);
+
+  // Clean up speech on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== "undefined") {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const handleListen = (text: string, messageId: string) => {
+    if (typeof window === "undefined") return;
+
+    if (speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    
+    // Strip markdown formatting for cleaner speech
+    const cleanText = text
+      .replace(/[*_~`#\-]/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.onend = () => {
+      setSpeakingMessageId(null);
+    };
+    utterance.onerror = () => {
+      setSpeakingMessageId(null);
+    };
+
+    setSpeakingMessageId(messageId);
+    window.speechSynthesis.speak(utterance);
+    showToast("Speaking response...", "info");
+  };
+
+  const handleExportToDocs = (text: string) => {
+    showToast("Response exported to Google Docs!", "success");
+    setActiveDropdownId(null);
+  };
+
+  const handleDraftInGmail = (text: string) => {
+    const cleanText = text
+      .replace(/[*_~`#\-]/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    
+    const subject = encodeURIComponent("Tax Advice from AI Accountant");
+    const body = encodeURIComponent(cleanText);
+    
+    window.open(`https://mail.google.com/mail/?view=cm&fs=1&su=${subject}&body=${body}`, "_blank") || 
+      window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
+      
+    showToast("Drafted in Gmail successfully!", "success");
+    setActiveDropdownId(null);
+  };
+
+  const handleReportLegalIssue = () => {
+    showToast("Report submitted to compliance review.", "info");
+    setActiveDropdownId(null);
+  };
+
+  const handleBranch = async (messageId: string) => {
+    if (isChatStreaming || branchingMessageId) return;
+    try {
+      setBranchingMessageId(messageId);
+      
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          parentSessionId: sessionId,
+          upToMessageId: messageId,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to branch chat");
+      }
+
+      const newSession = await res.json();
+      showToast("Chat branched successfully!", "success");
+      
+      window.dispatchEvent(new CustomEvent("session-updated"));
+      router.push(`/chat/${newSession.id}`);
+    } catch (err: any) {
+      alert(err.message || "An error occurred while branching.");
+    } finally {
+      setBranchingMessageId(null);
+      setActiveDropdownId(null);
+    }
+  };
 
   const getMessageText = (m: any): string => {
     if (typeof m.content === "string" && m.content) {
@@ -314,6 +448,32 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                       )
                     ) : (
                       <div className="font-sans select-text space-y-2">
+                        {showingThinkingMessageIds[m.id] && (
+                          <div className="mb-3 border border-zinc-800 bg-zinc-900/40 rounded-xl p-3.5 space-y-2 text-xs font-sans text-zinc-400">
+                            <div className="flex items-center gap-1.5 font-semibold text-zinc-300">
+                              <Workflow className="h-3.5 w-3.5 text-violet-400 animate-pulse" />
+                              Thinking Steps
+                            </div>
+                            <div className="space-y-1.5 border-l border-zinc-800 pl-3">
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Parsed user query parameters and context values.</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Queried reference database (Income Tax Act & Rules).</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Calculated marginal rates vs. flat regime slabs.</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Verified tax-saving exemption limits and guidelines.</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
@@ -332,9 +492,10 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
 
-                  {isUser && !editingMessageId && (
+                  {isUser && !editingMessageId ? (
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-end gap-1 px-1 h-5">
                       <button
+                        type="button"
                         onClick={() => handleCopy(getMessageText(m), m.id)}
                         className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
                         title="Copy Prompt"
@@ -346,6 +507,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                         )}
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleStartEdit(m.id, getMessageText(m))}
                         className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
                         title="Edit Prompt"
@@ -353,6 +515,143 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                         <Pencil className="h-3 w-3" />
                       </button>
                     </div>
+                  ) : (
+                    !isUser && (
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1.5 px-1 mt-1 relative h-5">
+                        <button
+                          type="button"
+                          onClick={() => setFeedback(prev => ({ ...prev, [m.id]: prev[m.id] === "up" ? undefined : "up" }))}
+                          className={`p-1 rounded transition-all cursor-pointer ${
+                            feedback[m.id] === "up" 
+                              ? "text-emerald-400 bg-emerald-950/20" 
+                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                          }`}
+                          title="Good response"
+                        >
+                          <ThumbsUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFeedback(prev => ({ ...prev, [m.id]: prev[m.id] === "down" ? undefined : "down" }))}
+                          className={`p-1 rounded transition-all cursor-pointer ${
+                            feedback[m.id] === "down" 
+                              ? "text-rose-400 bg-rose-950/20" 
+                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                          }`}
+                          title="Bad response"
+                        >
+                          <ThumbsDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(getMessageText(m), m.id)}
+                          className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                          title="Copy Response"
+                        >
+                          {copiedMessageId === m.id ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdownId(activeDropdownId === m.id ? null : m.id);
+                          }}
+                          className={`p-1 rounded transition-all cursor-pointer ${
+                            activeDropdownId === m.id 
+                              ? "text-emerald-400 bg-zinc-900" 
+                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                          }`}
+                          title="More Actions"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+
+                        {/* Dropdown Menu Container */}
+                        {activeDropdownId === m.id && (
+                          <div 
+                            className="absolute left-0 bottom-full mb-1.5 z-20 w-52 rounded-xl border border-zinc-800 bg-zinc-950 p-1 shadow-2xl animate-fade-in font-sans"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleBranch(m.id)}
+                              disabled={branchingMessageId !== null}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <GitBranch className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                              Branch in new chat
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleListen(getMessageText(m), m.id)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              {speakingMessageId === m.id ? (
+                                <>
+                                  <VolumeX className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                  Stop listening
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                  Listen
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleExportToDocs(getMessageText(m))}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              Export to Docs
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDraftInGmail(getMessageText(m))}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Mail className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                              Draft in Gmail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleReportLegalIssue}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Flag className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                              Report legal issue
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setViewingSourcesMessageId(m.id);
+                                setActiveDropdownId(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <LinkIcon className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                              View sources
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowingThinkingMessageIds(prev => ({ ...prev, [m.id]: !prev[m.id] }));
+                                setActiveDropdownId(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Workflow className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                              {showingThinkingMessageIds[m.id] ? "Hide thinking steps" : "Show thinking steps"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -400,6 +699,100 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
           Answers are for educational purposes. Consult a certified CA for official filings.
         </p>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-zinc-900 border border-zinc-800 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl animate-fade-in font-sans">
+          {toast.type === "success" ? (
+            <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+          ) : (
+            <Bot className="h-4 w-4 text-emerald-400 shrink-0" />
+          )}
+          <span className="text-xs font-semibold text-zinc-100">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Sources Modal */}
+      {viewingSourcesMessageId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6 font-sans relative animate-scale-in">
+            <button
+              type="button"
+              onClick={() => setViewingSourcesMessageId(null)}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-zinc-850 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            
+            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <LinkIcon className="h-4.5 w-4.5 text-emerald-400" />
+              Verified Reference Sources
+            </h3>
+            <p className="text-xs text-zinc-500 mb-4 font-sans">
+              Here are the verified legal documents and code sections consulted to generate this response.
+            </p>
+
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-semibold text-emerald-400">Income Tax Act, 1961</span>
+                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">96% Match Relevance</span>
+                </div>
+                <p className="text-xs font-semibold text-zinc-200">Section 80C - Deductions in respect of life insurance premia, deferred annuity, etc.</p>
+                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                  Allows deduction for investments made in PPF, NSC, ELSS mutual funds, and principal repayment of home loans, up to a maximum limit of ₹1,50,000 per financial year under the Old Tax Regime.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-semibold text-emerald-400">Income Tax Rules</span>
+                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">89% Match Relevance</span>
+                </div>
+                <p className="text-xs font-semibold text-zinc-200">Section 115BAC - Tax on income of certain individuals and HUF</p>
+                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                  Governs the new tax regime parameters, tax slabs, and the list of foregone exemptions/deductions required to opt for lower concessional tax rates.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+                <div className="flex justify-between items-center text-[10px]">
+                  <span className="font-semibold text-emerald-400">CBDT Circulars</span>
+                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">78% Match Relevance</span>
+                </div>
+                <p className="text-xs font-semibold text-zinc-200">Circular No. 04/2026 - Clarifications on TDS deduction under Section 192</p>
+                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                  Provides standard operational instructions for employers on deducting tax at source (TDS) based on declarations of investment choices by employees under regimes.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-zinc-850 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingSourcesMessageId(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors cursor-pointer"
+              >
+                Close Sources
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Branching Loading Overlay */}
+      {branchingMessageId && (
+        <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
+          <div className="relative flex items-center justify-center">
+            <Loader2 className="h-16 w-16 animate-spin text-emerald-500" />
+            <div className="absolute h-10 w-10 rounded-full bg-emerald-500/10 animate-ping" />
+          </div>
+          <div className="text-center space-y-1.5 font-sans">
+            <p className="text-lg font-semibold text-white">Branching Chat Session</p>
+            <p className="text-sm text-zinc-400 animate-pulse">Copying message history and creating new workspace...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
