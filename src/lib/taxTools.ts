@@ -49,9 +49,46 @@ export const tax_slab_calculator = tool({
 
     try {
       const calculation = calculateTax(incomeInput, deductionsInput, args.assessmentYear);
+      
+      const oldRegimeStandard = {
+        ...calculation.oldRegime,
+        regime: "Old",
+        gross_salary: calculation.oldRegime.grossIncome,
+        deductions_allowed: calculation.oldRegime.totalDeductions,
+        taxable_income: calculation.oldRegime.taxableIncome,
+        total_tax: calculation.oldRegime.netTax,
+        standard_deduction: calculation.oldRegime.salaryStandardDeduction,
+        hra_exemption: calculation.oldRegime.hraExemption,
+        chapter_vi_a_deductions: calculation.oldRegime.chapterVIA,
+        home_loan_interest: calculation.oldRegime.homeLoanInterest,
+        slab_tax: calculation.oldRegime.slabTax,
+        cess: calculation.oldRegime.cess,
+        rebate: calculation.oldRegime.rebate87A
+      };
+
+      const newRegimeStandard = {
+        ...calculation.newRegime,
+        regime: "New",
+        gross_salary: calculation.newRegime.grossIncome,
+        deductions_allowed: calculation.newRegime.totalDeductions,
+        taxable_income: calculation.newRegime.taxableIncome,
+        total_tax: calculation.newRegime.netTax,
+        standard_deduction: calculation.newRegime.salaryStandardDeduction,
+        hra_exemption: calculation.newRegime.hraExemption,
+        chapter_vi_a_deductions: calculation.newRegime.chapterVIA,
+        home_loan_interest: calculation.newRegime.homeLoanInterest,
+        slab_tax: calculation.newRegime.slabTax,
+        cess: calculation.newRegime.cess,
+        rebate: calculation.newRegime.rebate87A
+      };
+
       return {
         success: true,
-        calculation,
+        calculation: {
+          ...calculation,
+          oldRegime: oldRegimeStandard,
+          newRegime: newRegimeStandard,
+        },
       };
     } catch (error: any) {
       return {

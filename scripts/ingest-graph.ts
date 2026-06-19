@@ -14,7 +14,10 @@ const RELATIONSHIPS = [
   { source: "New Regime", target: "Section 80D", type: "DISALLOWS", description: "New Regime disallows Section 80D health insurance deductions" },
   { source: "New Regime", target: "Section 24(b)", type: "DISALLOWS", description: "New Regime disallows home loan interest deduction for self-occupied properties (allowed only for let-out)" },
   { source: "New Regime", target: "Section 10(13A)", type: "DISALLOWS", description: "New Regime disallows House Rent Allowance (HRA) exemptions" },
-  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹20,000 for income up to ₹7,00,000" },
+  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹25,000 for taxable income up to ₹7,00,000 in AY 2024-25", applicable_ay: "2024-25" },
+  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹20,000 for taxable income up to ₹7,00,000 in AY 2025-26", applicable_ay: "2025-26" },
+  { source: "New Regime", target: "Standard Deduction", type: "ALLOWS", description: "New Regime allows standard deduction of ₹50,000 in AY 2024-25", applicable_ay: "2024-25" },
+  { source: "New Regime", target: "Standard Deduction", type: "ALLOWS", description: "New Regime allows standard deduction of ₹75,000 in AY 2025-26", applicable_ay: "2025-26" },
 
   // Section 80C eligible investments
   { source: "Section 80C", target: "PPF (Public Provident Fund)", type: "INCLUDES", description: "PPF investments qualify for Section 80C deduction" },
@@ -79,12 +82,13 @@ async function run() {
         MERGE (s:TaxConcept {name: $source})
         MERGE (t:TaxConcept {name: $target})
         WITH s, t
-        CREATE (s)-[r:${rel.type} {description: $description}]->(t)
+        CREATE (s)-[r:${rel.type} {description: $description, applicable_ay: $applicable_ay}]->(t)
         `,
         {
           source: rel.source,
           target: rel.target,
-          description: rel.description
+          description: rel.description,
+          applicable_ay: (rel as any).applicable_ay || "all"
         }
       );
     }

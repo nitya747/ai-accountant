@@ -5,6 +5,7 @@ export interface GraphRelationship {
   target: string;
   type: string;
   description: string;
+  applicable_ay?: string; // e.g. "2024-25", "2025-26", or "all"
 }
 
 // Static in-memory representation of the tax knowledge graph for offline/mock mode
@@ -21,7 +22,10 @@ const STATIC_GRAPH: GraphRelationship[] = [
   { source: "New Regime", target: "Section 80D", type: "DISALLOWS", description: "New Regime disallows Section 80D health insurance deductions" },
   { source: "New Regime", target: "Section 24(b)", type: "DISALLOWS", description: "New Regime disallows home loan interest deduction for self-occupied properties (allowed only for let-out)" },
   { source: "New Regime", target: "Section 10(13A)", type: "DISALLOWS", description: "New Regime disallows House Rent Allowance (HRA) exemptions" },
-  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹20,000 for income up to ₹7,00,000" },
+  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹25,000 for taxable income up to ₹7,00,000 in AY 2024-25", applicable_ay: "2024-25" },
+  { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹20,000 for taxable income up to ₹7,00,000 in AY 2025-26", applicable_ay: "2025-26" },
+  { source: "New Regime", target: "Standard Deduction", type: "ALLOWS", description: "New Regime allows standard deduction of ₹50,000 in AY 2024-25", applicable_ay: "2024-25" },
+  { source: "New Regime", target: "Standard Deduction", type: "ALLOWS", description: "New Regime allows standard deduction of ₹75,000 in AY 2025-26", applicable_ay: "2025-26" },
 
   // Section 80C eligible investments
   { source: "Section 80C", target: "PPF (Public Provident Fund)", type: "INCLUDES", description: "PPF investments qualify for Section 80C deduction" },
@@ -106,6 +110,7 @@ function normalizeKey(str: string): string {
 }
 
 // Regex to extract tax sections from queries
+// Regex to extract tax sections from queries
 export function extractTaxSections(text: string): string[] {
   const patterns = [
     /80C/i, /80D/i, /24\(?b\)?/i, /10\(?13A\)?/i, /44AD/i, /44ADA/i, 
@@ -142,7 +147,20 @@ export function extractTaxSections(text: string): string[] {
   if (text.toLowerCase().includes("health insurance") || text.toLowerCase().includes("medical")) {
     matches.push("Section 80D");
   }
-  if (text.toLowerCase().includes("home loan interest") || text.toLowerCase().includes("house loan")) {
+  
+  const lowerText = text.toLowerCase();
+  if (
+    lowerText.includes("home loan interest") ||
+    lowerText.includes("house loan") ||
+    lowerText.includes("rented property loan") ||
+    lowerText.includes("rental property loan") ||
+    lowerText.includes("let-out property loan") ||
+    lowerText.includes("loan on rented property") ||
+    lowerText.includes("house property") ||
+    lowerText.includes("rented property") ||
+    lowerText.includes("rental property") ||
+    lowerText.includes("income from house property")
+  ) {
     matches.push("Section 24(b)");
   }
   if (text.toLowerCase().includes("hra") || text.toLowerCase().includes("house rent allowance")) {
@@ -164,7 +182,7 @@ export function extractTaxSections(text: string): string[] {
   if (text.toLowerCase().includes("professional tds") || text.toLowerCase().includes("technical services")) {
     matches.push("Section 194J");
   }
-  if (text.toLowerCase().includes("tds on rent") || text.toLowerCase().includes("rent tds")) {
+  if (text.toLowerCase().includes("tds on rent") || text.toLowerCase().includes("rent tds") || text.toLowerCase().includes("income from house property")) {
     matches.push("Section 194I");
   }
 
@@ -182,23 +200,27 @@ export function extractTaxSections(text: string): string[] {
 }
 
 // Fetch related tax relationships from Neo4j (or mock in-memory database)
-export async function getRelatedTaxRelationships(queryText: string): Promise<GraphRelationship[]> {
+export async function getRelatedTaxRelationships(queryText: string, assessmentYear: string = "AY 2025-26"): Promise<GraphRelationship[]> {
   const detectedSections = extractTaxSections(queryText);
   if (detectedSections.length === 0) {
     return [];
   }
 
+  const aySuffix = assessmentYear.replace("AY ", ""); // "2025-26" or "2024-25"
+
   const currentDriver = getDriver();
   if (isMockMode || !currentDriver) {
-    // Mock Retrieval: Filter mock graph relationships matching detected sections
+    // Mock Retrieval: Filter mock graph relationships matching detected sections and AY
     const normalizedDetected = detectedSections.map(s => normalizeKey(s));
     return STATIC_GRAPH.filter(rel => {
       const normSource = normalizeKey(rel.source);
       const normTarget = normalizeKey(rel.target);
-      return (
+      const matchesSections = (
         normalizedDetected.some(d => normSource.includes(d) || d.includes(normSource)) ||
         normalizedDetected.some(d => normTarget.includes(d) || d.includes(normTarget))
       );
+      const matchesAY = !rel.applicable_ay || rel.applicable_ay === "all" || rel.applicable_ay === aySuffix;
+      return matchesSections && matchesAY;
     });
   }
 
@@ -208,11 +230,12 @@ export async function getRelatedTaxRelationships(queryText: string): Promise<Gra
     const result = await session.run(
       `
       MATCH (n)-[r:ALLOWS|DISALLOWS|INCLUDES|APPLIES_TO|RELATED|GOVERNED_BY|EXEMPTS]-(m)
-      WHERE n.name IN $sectionNames OR m.name IN $sectionNames
-      RETURN n.name AS source, m.name AS target, type(r) AS type, r.description AS description
+      WHERE (n.name IN $sectionNames OR m.name IN $sectionNames)
+        AND (r.applicable_ay IS NULL OR r.applicable_ay = $aySuffix OR r.applicable_ay = 'all')
+      RETURN n.name AS source, m.name AS target, type(r) AS type, r.description AS description, r.applicable_ay AS applicable_ay
       LIMIT 15
       `,
-      { sectionNames: detectedSections }
+      { sectionNames: detectedSections, aySuffix }
     );
 
     return result.records.map(record => ({
@@ -220,6 +243,7 @@ export async function getRelatedTaxRelationships(queryText: string): Promise<Gra
       target: record.get("target"),
       type: record.get("type"),
       description: record.get("description"),
+      applicable_ay: record.get("applicable_ay"),
     }));
   } catch (err) {
     console.error("Failed to query Neo4j relationships, falling back to mock:", err);
@@ -229,10 +253,12 @@ export async function getRelatedTaxRelationships(queryText: string): Promise<Gra
     return STATIC_GRAPH.filter(rel => {
       const normSource = normalizeKey(rel.source);
       const normTarget = normalizeKey(rel.target);
-      return (
+      const matchesSections = (
         normalizedDetected.some(d => normSource.includes(d) || d.includes(normSource)) ||
         normalizedDetected.some(d => normTarget.includes(d) || d.includes(normTarget))
       );
+      const matchesAY = !rel.applicable_ay || rel.applicable_ay === "all" || rel.applicable_ay === aySuffix;
+      return matchesSections && matchesAY;
     });
   } finally {
     await session.close();

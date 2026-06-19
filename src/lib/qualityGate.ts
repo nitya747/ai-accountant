@@ -166,3 +166,42 @@ export function validateAndCorrectText(text: string, toolResults: any[]): string
 
   return correctedText;
 }
+
+export function checkDiscrepancies(
+  text: string,
+  toolResults: any[]
+): { isValid: boolean; errorFeedback: string | null; correctedText: string } {
+  if (!toolResults || !Array.isArray(toolResults) || toolResults.length === 0) {
+    return { isValid: true, errorFeedback: null, correctedText: text };
+  }
+
+  const correctedText = validateAndCorrectText(text, toolResults);
+  if (correctedText.trim() === text.trim()) {
+    return { isValid: true, errorFeedback: null, correctedText };
+  }
+
+  // Find exact lines where they differ
+  const originalLines = text.split("\n");
+  const correctedLines = correctedText.split("\n");
+  const diffs: string[] = [];
+
+  for (let i = 0; i < Math.min(originalLines.length, correctedLines.length); i++) {
+    if (originalLines[i].trim() !== correctedLines[i].trim()) {
+      diffs.push(`- Expected line: "${correctedLines[i].trim()}"\n  But your generated response wrote: "${originalLines[i].trim()}"`);
+    }
+  }
+
+  const feedback = `Error: Your generated response has tax calculations or formatting that deviates from the calculator tool's official results.
+Please review the discrepancies below, correct your prose and tables, and regenerate the entire response matching the expected values exactly.
+
+Discrepancies found:
+${diffs.slice(0, 5).join("\n")}
+
+Please ensure standard deductions, HRA exemptions, tax rebates, cess, and net tax liabilities match the calculator outputs exactly.`;
+
+  return {
+    isValid: false,
+    errorFeedback: feedback,
+    correctedText
+  };
+}

@@ -2,6 +2,18 @@ import { prisma } from "./db";
 import { embed } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { getRelatedTaxRelationships, extractTaxSections } from "./neo4j";
+import fs from "fs";
+import path from "path";
+
+function logDebugToFile(message: string) {
+  try {
+    const logPath = path.join(process.cwd(), "scripts", "debug.log");
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(logPath, `${timestamp}: ${message}\n`);
+  } catch (e) {
+    console.error("Failed to write to debug log file", e);
+  }
+}
 
 const STOPWORDS = new Set([
   "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at",
@@ -202,7 +214,11 @@ export async function rerankChunks(
       body: JSON.stringify({
         model: "rerank-english-v3.0",
         query,
-        documents: chunks.map((c) => c.content),
+        documents: chunks.map((c) => {
+          const docType = c.source || "Income Tax Act";
+          const section = c.title || "General";
+          return `Document Type: ${docType} | Section: ${section} | Text: ${c.content}`;
+        }),
         top_n: limit,
       }),
     });
@@ -236,27 +252,25 @@ export async function searchHybrid(
   query: string,
   chunkLimit: number = 5,
   rerankLimit: number = 3,
-  sessionId?: string
+  sessionId?: string,
+  assessmentYear: string = "AY 2025-26"
 ): Promise<HybridSearchResult> {
-  // 1. Get initial semantic chunks (retrieve a bit more than limit to allow graph additions/reranking)
-  const initialChunks = await searchSimilarity(query, 10, sessionId);
+  // 1. Parallel execution: Vector search similarity and Neo4j initial relationship lookup
+  logDebugToFile(`searchHybrid: starting parallel RAG search for AY: ${assessmentYear}`);
+  const [initialChunks, relationships] = await Promise.all([
+    searchSimilarity(query, 10, sessionId),
+    getRelatedTaxRelationships(query, assessmentYear)
+  ]);
 
-  // 2. Extract sections from query and initial chunks
+  // 2. Extract sections from initial chunks to expand graph mappings if needed
   const detectedSections = new Set<string>();
-  
-  // Extract from query
   extractTaxSections(query).forEach((sec) => detectedSections.add(sec));
-  
-  // Extract from retrieved chunks
   initialChunks.forEach((chunk) => {
     extractTaxSections(chunk.content).forEach((sec) => detectedSections.add(sec));
     extractTaxSections(chunk.title).forEach((sec) => detectedSections.add(sec));
   });
 
-  // 3. Query Knowledge Graph for relationships
-  const relationships = await getRelatedTaxRelationships(Array.from(detectedSections).join(" "));
-
-  // 4. Graph-expanded retrieval: find any sections mentioned as targets/sources in the relationships
+  // 3. Graph-expanded retrieval: find any sections mentioned as targets/sources in the relationships
   const expandedSections = new Set<string>();
   relationships.forEach((rel) => {
     if (rel.source.startsWith("Section")) expandedSections.add(rel.source);
@@ -306,7 +320,7 @@ export async function searchHybrid(
     });
   }
 
-  // 5. Merge, deduplicate, and rerank
+  // 4. Merge, deduplicate, and rerank
   const allChunksMap = new Map<string, SearchResult>();
   
   // Add initial chunks
