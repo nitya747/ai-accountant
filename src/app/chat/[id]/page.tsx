@@ -643,7 +643,8 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                           </div>
                         )}
                         <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
                           components={{
                             table: CustomPremiumTable,
                             p: ({ children }) => {
