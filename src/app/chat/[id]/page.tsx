@@ -5,6 +5,8 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { 
   Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check,
   ThumbsUp, ThumbsDown, MoreHorizontal, GitBranch, Volume2, VolumeX,
@@ -999,32 +1001,34 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             onChange={handleFileUpload}
             className="hidden"
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isChatStreaming || uploading}
-            className="absolute left-2.5 bottom-2.5 p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer"
-            title="Upload Form-16 / 26AS PDF"
-          >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <textarea
-            ref={promptRef}
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask anything about Section 80C, capital gains, regimes..."
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3.5 pl-12 pr-12 text-sm text-zinc-100 placeholder-zinc-500 shadow-inner focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-sans resize-none overflow-y-auto max-h-48"
-            disabled={isChatStreaming || uploading}
-          />
-          <button
-            type="submit"
-            disabled={isChatStreaming || !input.trim() || uploading}
-            className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          <div className="flex items-end gap-2 w-full rounded-xl border border-zinc-800 bg-zinc-900/40 p-2 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition-all">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isChatStreaming || uploading}
+              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer shrink-0"
+              title="Upload Form-16 / 26AS PDF"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            <textarea
+              ref={promptRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything about Section 80C, capital gains, regimes..."
+              className="flex-1 bg-transparent py-2 px-1 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none overflow-y-auto max-h-48 font-sans"
+              disabled={isChatStreaming || uploading}
+            />
+            <button
+              type="submit"
+              disabled={isChatStreaming || !input.trim() || uploading}
+              className="p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer shrink-0"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
         </form>
         <p className="text-center text-[10px] text-zinc-650 mt-2 font-sans">
           Answers are for educational purposes. Consult a certified CA for official filings.
