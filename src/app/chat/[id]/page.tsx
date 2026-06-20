@@ -28,6 +28,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -479,12 +480,32 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!input.trim() || isChatStreaming || uploading) return;
     sendMessage({ role: "user", parts: [{ type: "text", text: input }] });
     setInput("");
   };
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSubmit();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  // Auto-resize the prompt textarea based on content
+  useEffect(() => {
+    const el = promptRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+    }
+  }, [input]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -982,22 +1003,25 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isChatStreaming || uploading}
-            className="absolute left-2.5 top-2.5 p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer"
+            className="absolute left-2.5 bottom-2.5 p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer"
             title="Upload Form-16 / 26AS PDF"
           >
             <Paperclip className="h-4 w-4" />
           </button>
-          <input
+          <textarea
+            ref={promptRef}
+            rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Ask anything about Section 80C, capital gains, regimes..."
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3.5 pl-12 pr-12 text-sm text-zinc-100 placeholder-zinc-500 shadow-inner focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-sans"
+            className="w-full rounded-xl border border-zinc-800 bg-zinc-900/40 py-3.5 pl-12 pr-12 text-sm text-zinc-100 placeholder-zinc-500 shadow-inner focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all font-sans resize-none overflow-y-auto max-h-48"
             disabled={isChatStreaming || uploading}
           />
           <button
             type="submit"
             disabled={isChatStreaming || !input.trim() || uploading}
-            className="absolute right-2.5 top-2.5 p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer"
+            className="absolute right-2.5 bottom-2.5 p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer"
           >
             <Send className="h-4 w-4" />
           </button>
