@@ -33,6 +33,9 @@ export function getLabelKey(label: string): string | null {
   if (clean.includes("homeloaninterest") || clean.includes("section24b") || clean.includes("interestonhomeloan")) {
     return "homeLoanInterest";
   }
+  if (clean.includes("housepropertyincome") || clean.includes("incomefromhouseproperty") || clean.includes("netrentalincome") || clean.includes("housepropertyloss")) {
+    return "housePropertyIncome";
+  }
   if (clean.includes("totaldeduction") || clean.includes("totaldeductions")) {
     return "totalDeductions";
   }

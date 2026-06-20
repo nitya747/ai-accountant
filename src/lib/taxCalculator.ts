@@ -4,6 +4,8 @@ export interface IncomeSources {
   professional?: number;
   capitalGainsSTCG?: number; // Listed equity (111A)
   capitalGainsLTCG?: number; // Listed equity (112A)
+  rentalIncome?: number;      // Gross rental income/GAV (Section 23)
+  municipalTaxes?: number;    // Municipal taxes paid
   other?: number;
 }
 
@@ -27,6 +29,7 @@ export interface TaxBreakdown {
   hraExemption: number;
   chapterVIA: number; // 80C + 80D
   homeLoanInterest: number; // 24b
+  housePropertyIncome: number; // Income/Loss under the head "Income from House Property" (after standard deduction 24a and interest 24b, and applying set-off cap)
   totalDeductions: number;
   taxableIncome: number;
   ordinaryTaxableIncome: number;
@@ -105,9 +108,37 @@ export function calculateTax(
   const professional = income.professional || 0;
   const stcg = income.capitalGainsSTCG || 0;
   const ltcg = income.capitalGainsLTCG || 0;
+  const rentalIncome = income.rentalIncome || 0;
+  const municipalTaxes = income.municipalTaxes || 0;
   const other = income.other || 0;
 
-  const grossTotalIncome = salary + business + professional + stcg + ltcg + other;
+  const grossTotalIncome = salary + business + professional + stcg + ltcg + rentalIncome + other;
+
+  // --- HOUSE PROPERTY INCOME CALCULATION (Section 24) ---
+  const hpNAV = Math.max(0, rentalIncome - municipalTaxes);
+  const hpSec24a = rentalIncome > 0 ? hpNAV * 0.3 : 0; // 30% Standard Deduction under Sec 24(a)
+  
+  // Old Regime House Property Calculation
+  const oldInterest = rentalIncome > 0 
+    ? (deductions.section24b || 0)
+    : Math.min(200000, deductions.section24b || 0); // Self-occupied capped at 2L
+  const oldHPIncomeBeforeSetOff = rentalIncome > 0 
+    ? (hpNAV - hpSec24a - oldInterest)
+    : -oldInterest;
+  const oldHPSetOff = oldHPIncomeBeforeSetOff < 0 
+    ? Math.max(-200000, oldHPIncomeBeforeSetOff) // Set-off cap of 2L against other heads
+    : oldHPIncomeBeforeSetOff;
+
+  // New Regime House Property Calculation
+  const newInterest = rentalIncome > 0 
+    ? (deductions.section24b || 0)
+    : 0; // Self-occupied interest is not allowed in New Regime
+  const newHPIncomeBeforeSetOff = rentalIncome > 0 
+    ? (hpNAV - hpSec24a - newInterest)
+    : 0;
+  const newHPSetOff = newHPIncomeBeforeSetOff < 0 
+    ? 0 // Set-off cap is 0 in New Regime (loss cannot set off other heads)
+    : newHPIncomeBeforeSetOff;
 
   // --- REGIME SLABS ---
   // Old Regime Slabs (identical for both years)
@@ -148,7 +179,7 @@ export function calculateTax(
     newStdDeduction = salary > 0 ? Math.min(salary, 50000) : 0;
   }
 
-  const newOrdinaryTaxable = Math.max(0, salary - newStdDeduction + business + professional + other);
+  const newOrdinaryTaxable = Math.max(0, Math.max(0, salary - newStdDeduction) + business + professional + newHPSetOff + other);
 
   if (ay === "AY 2025-26") {
     // New Slabs AY 2025-26:
@@ -236,14 +267,9 @@ export function calculateTax(
   // Chapter VI-A deductions
   const d80C = Math.min(150000, deductions.section80C || 0);
   const d80D = Math.min(100000, (deductions.section80D || 0) + (deductions.section80DParents || 0));
-  
-  // Home loan interest Section 24b
-  const d24b = Math.min(200000, deductions.section24b || 0);
 
-  const oldTotalDeductions = oldStdDeduction + oldHraExemption + d80C + d80D + d24b;
-  
-  const oldOrdinaryGross = salary - oldStdDeduction - oldHraExemption + business + professional + other;
-  const oldOrdinaryTaxable = Math.max(0, oldOrdinaryGross - d80C - d80D - d24b);
+  const oldOrdinaryGross = Math.max(0, salary - oldStdDeduction - oldHraExemption) + business + professional + oldHPSetOff + other;
+  const oldOrdinaryTaxable = Math.max(0, oldOrdinaryGross - d80C - d80D);
   const oldTaxableIncome = oldOrdinaryTaxable + stcg + ltcg;
 
   const oldSlabTax = calculateOldSlabTax(oldOrdinaryTaxable);
@@ -261,12 +287,15 @@ export function calculateTax(
   const oldCess = oldTaxAfterRebate * 0.04;
   const oldNetTax = oldTaxAfterRebate + oldCess;
 
+  const oldTotalDeductions = oldStdDeduction + oldHraExemption + d80C + d80D + oldInterest + hpSec24a + municipalTaxes;
+
   const oldBreakdown: TaxBreakdown = {
     grossIncome: grossTotalIncome,
     salaryStandardDeduction: oldStdDeduction,
     hraExemption: oldHraExemption,
     chapterVIA: d80C + d80D,
-    homeLoanInterest: d24b,
+    homeLoanInterest: oldInterest,
+    housePropertyIncome: oldHPSetOff,
     totalDeductions: oldTotalDeductions,
     taxableIncome: oldTaxableIncome,
     ordinaryTaxableIncome: oldOrdinaryTaxable,
@@ -283,7 +312,7 @@ export function calculateTax(
   // ==========================================
   // NEW REGIME CALCULATION
   // ==========================================
-  const newTotalDeductions = newStdDeduction;
+  const newTotalDeductions = newStdDeduction + newInterest + hpSec24a + municipalTaxes;
   const newTaxableIncome = newOrdinaryTaxable + stcg + ltcg;
 
   const newStcgTax = stcg * stcgRate;
@@ -314,7 +343,8 @@ export function calculateTax(
     salaryStandardDeduction: newStdDeduction,
     hraExemption: 0,
     chapterVIA: 0,
-    homeLoanInterest: 0,
+    homeLoanInterest: newInterest,
+    housePropertyIncome: newHPSetOff,
     totalDeductions: newTotalDeductions,
     taxableIncome: newTaxableIncome,
     ordinaryTaxableIncome: newOrdinaryTaxable,

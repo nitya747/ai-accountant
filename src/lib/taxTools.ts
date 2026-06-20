@@ -12,11 +12,13 @@ export const tax_slab_calculator = tool({
     professional: z.number().optional().default(0).describe("Professional income (consulting fees/receipts)"),
     capitalGainsSTCG: z.number().optional().default(0).describe("Short-Term Capital Gains on listed equity/equity mutual funds (Section 111A)"),
     capitalGainsLTCG: z.number().optional().default(0).describe("Long-Term Capital Gains on listed equity/equity mutual funds (Section 112A)"),
+    rentalIncome: z.number().optional().default(0).describe("Gross rental income received/receivable from let-out house property"),
+    municipalTaxes: z.number().optional().default(0).describe("Municipal taxes paid during the year for the house property"),
     other: z.number().optional().default(0).describe("Other sources of income (e.g. interest, dividend)"),
     section80C: z.number().optional().default(0).describe("Deductions under Section 80C (PPF, ELSS, EPF, Home Loan Principal, SSY, etc. max 1.5L total)"),
     section80D: z.number().optional().default(0).describe("Deductions under Section 80D for self, spouse, children (medical insurance premiums, max 25k/50k)"),
     section80DParents: z.number().optional().default(0).describe("Deductions under Section 80D for parents (medical insurance premiums, max 25k/50k)"),
-    section24b: z.number().optional().default(0).describe("Deductions under Section 24(b) for home loan interest paid on self-occupied house (max 2L)"),
+    section24b: z.number().optional().default(0).describe("Deductions under Section 24(b) for home loan interest paid on house property (max 2L for self-occupied, unlimited for let-out)"),
     hraReceived: z.number().optional().default(0).describe("House Rent Allowance (HRA) received from employer"),
     rentPaid: z.number().optional().default(0).describe("Total rent paid in the financial year"),
     basicSalary: z.number().optional().default(0).describe("Basic salary + Dearness Allowance (DA) used for HRA exemption calculation"),
@@ -44,6 +46,8 @@ export const tax_slab_calculator = tool({
       professional: args.professional,
       capitalGainsSTCG: args.capitalGainsSTCG,
       capitalGainsLTCG: args.capitalGainsLTCG,
+      rentalIncome: args.rentalIncome,
+      municipalTaxes: args.municipalTaxes,
       other: args.other,
     };
 

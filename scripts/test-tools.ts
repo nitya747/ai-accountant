@@ -33,6 +33,28 @@ async function testTaxCalculator() {
   console.log(`- New Regime Net Tax: ₹${res3.newRegime.netTax.toFixed(2)} (Taxable Ordinary: ₹${res3.newRegime.ordinaryTaxableIncome})`);
   console.log(`- Recommended Regime: ${res3.optimalRegime}`);
   console.log(`- Tax Savings: ₹${res3.taxSavings.toFixed(2)}`);
+
+  // Test Case 4: House Property Let-Out (Rental Income + standard deduction 24a + interest 24b)
+  const res4 = calculateTax(
+    { salary: 1200000, rentalIncome: 400000, municipalTaxes: 20000 }, // Rent 4L, Muni 20k, NAV = 3.8L, 24a = 1.14L
+    { section24b: 150000 } // interest 1.5L. HP Income = 3.8L - 1.14L - 1.5L = +1.16L
+  );
+  console.log("\nTest Case 4: Salary ₹12L + Rental Income ₹4L + Municipal Taxes ₹20k + Interest ₹1.5L");
+  console.log(`- Old Regime HP Income (Expected +116,000): ₹${res4.oldRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- New Regime HP Income (Expected +116,000): ₹${res4.newRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- Old Regime Ordinary Taxable: ₹${res4.oldRegime.ordinaryTaxableIncome.toFixed(2)}`);
+  console.log(`- New Regime Ordinary Taxable: ₹${res4.newRegime.ordinaryTaxableIncome.toFixed(2)}`);
+
+  // Test Case 5: House Property Loss Set-off (Self-Occupied vs Let-out loss limits)
+  const res5 = calculateTax(
+    { salary: 1200000 },
+    { section24b: 250000 } // Self-occupied. Old Regime cap 2L, New Regime cap 0.
+  );
+  console.log("\nTest Case 5: Salary ₹12L + SOP Interest ₹2.5L (Old regime cap 2L loss, New regime cap 0)");
+  console.log(`- Old Regime HP Income (Expected -200,000): ₹${res5.oldRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- New Regime HP Income (Expected 0): ₹${res5.newRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- Old Regime Ordinary Taxable (12L - 50k std - 200k interest = 9.5L): ₹${res5.oldRegime.ordinaryTaxableIncome.toFixed(2)}`);
+  console.log(`- New Regime Ordinary Taxable (12L - 75k std - 0 interest = 11.25L): ₹${res5.newRegime.ordinaryTaxableIncome.toFixed(2)}`);
 }
 
 async function testHRA() {
