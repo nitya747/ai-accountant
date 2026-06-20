@@ -34,6 +34,10 @@
         "content": "Section 24(b) allows deduction of interest paid on a home loan:\n- Self-occupied property: Up to ₹2,00,000 per year can be claimed as a deduction.\n- Let-out property: No upper limit for interest deduction, but loss from house property that can be set off against other heads of income is capped at ₹2,00,000.\nNote: Deduction for self-occupied home loan interest under Section 24(b) is only available under the Old Tax Regime. It is not allowed under the default New Tax Regime."
       },
       {
+        "heading": "Section 115BAC House Property Loss Set-off and Carry Forward Rules",
+        "content": "Policy Guardrail: When evaluating the New Tax Regime (Section 115BAC), you must strictly enforce that any loss under the head 'Income from House Property' can neither be set off against any other head of income in the current year NOR carried forward to any future years. The loss lapses entirely. Never advise a user that they can carry forward a house property loss under the New Regime."
+      },
+      {
         "heading": "House Rent Allowance (HRA) Exemption under Section 10(13A)",
         "content": "House Rent Allowance (HRA) received by salaried employees is exempt under Section 10(13A) to the extent of the minimum of the following three:\n1. Actual HRA received\n2. Rent paid minus 10% of basic salary\n3. 50% of basic salary (for metro cities: Delhi, Mumbai, Kolkata, Chennai) or 40% (for non-metros)\nNote: HRA exemption is only available under the Old Tax Regime. It is not allowed under the default New Tax Regime."
       }

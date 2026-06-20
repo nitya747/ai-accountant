@@ -122,10 +122,10 @@ export async function generateOfflineReport(query: string, assessmentYear: strin
   reportText += `- **Query**: "${query}"\n`;
   reportText += `- **Assessment Year (AY)**: ${assessmentYear}\n\n`;
 
-  let toolResults: any[] = [];
+  const toolResults: any[] = [];
 
   if (matchedEvent === "TAX_CALCULATION") {
-    // Extract a number from the query
+    // Extract a number from the query (first matches salary/gross, let's look for salary keyword or default)
     const matches = lowerQuery.replace(/,/g, "").match(/\d+/g);
     const amount = matches ? parseInt(matches[0], 10) : 800000; // default to 8 Lakhs
     
@@ -145,9 +145,19 @@ export async function generateOfflineReport(query: string, assessmentYear: strin
       const match24b = lowerQuery.match(/(?:24b|interest|loan)[^\d]*(\d+)/);
       if (match24b) sec24b = parseInt(match24b[1], 10);
     }
+    let rentalIncome = 0;
+    if (lowerQuery.includes("rent") || lowerQuery.includes("rental")) {
+      const matchRent = lowerQuery.match(/(?:rent|rental)[^\d]*(\d+)/);
+      if (matchRent) rentalIncome = parseInt(matchRent[1], 10);
+    }
+    let municipalTaxes = 0;
+    if (lowerQuery.includes("municipal") || lowerQuery.includes("muni")) {
+      const matchMuni = lowerQuery.match(/(?:municipal|muni)[^\d]*(\d+)/);
+      if (matchMuni) municipalTaxes = parseInt(matchMuni[1], 10);
+    }
     
     const calcRes = calculateTax(
-      { salary: amount },
+      { salary: amount, rentalIncome, municipalTaxes },
       { section80C: sec80C, section80D: sec80D, section24b: sec24b },
       assessmentYear
     );
@@ -155,7 +165,7 @@ export async function generateOfflineReport(query: string, assessmentYear: strin
     toolResults.push({
       toolCallId: "offline-slab-call",
       toolName: "tax_slab_calculator",
-      args: { salary: amount, section80C: sec80C, section80D: sec80D, section24b: sec24b, assessmentYear },
+      args: { salary: amount, section80C: sec80C, section80D: sec80D, section24b: sec24b, rentalIncome, municipalTaxes, assessmentYear },
       result: { success: true, calculation: calcRes }
     });
 
@@ -167,7 +177,21 @@ export async function generateOfflineReport(query: string, assessmentYear: strin
     reportText += `| **Standard Deduction** | ₹${calcRes.oldRegime.salaryStandardDeduction.toLocaleString("en-IN")} | ₹${calcRes.newRegime.salaryStandardDeduction.toLocaleString("en-IN")} |\n`;
     if (sec80C > 0) reportText += `| **Deduction (Sec 80C)** | ₹${calcRes.oldRegime.chapterVIA.toLocaleString("en-IN")} | Not Allowed |\n`;
     if (sec80D > 0) reportText += `| **Deduction (Sec 80D)** | ₹${calcRes.oldRegime.chapterVIA.toLocaleString("en-IN")} | Not Allowed |\n`;
-    if (sec24b > 0) reportText += `| **Home Loan Interest (Sec 24b)** | ₹${calcRes.oldRegime.homeLoanInterest.toLocaleString("en-IN")} | Not Allowed |\n`;
+    
+    if (rentalIncome > 0 || sec24b > 0) {
+      reportText += `| **Rental Income (GAV)** | ₹${rentalIncome.toLocaleString("en-IN")} | ₹${rentalIncome.toLocaleString("en-IN")} |\n`;
+      reportText += `| **Municipal Taxes Paid** | ₹${municipalTaxes.toLocaleString("en-IN")} | ₹${municipalTaxes.toLocaleString("en-IN")} |\n`;
+      reportText += `| **Home Loan Interest (Sec 24b)** | ₹${calcRes.oldRegime.homeLoanInterest.toLocaleString("en-IN")} | ₹${calcRes.newRegime.homeLoanInterest.toLocaleString("en-IN")} |\n`;
+      reportText += `| **Net HP Income/Loss** | ₹${calcRes.oldRegime.housePropertyIncome.toLocaleString("en-IN")} | ₹${calcRes.newRegime.housePropertyIncome.toLocaleString("en-IN")} |\n`;
+      reportText += `| **HP Loss Before Set-off** | ₹${calcRes.oldRegime.housePropertyLossBeforeSetOff.toLocaleString("en-IN")} | ₹${calcRes.newRegime.housePropertyLossBeforeSetOff.toLocaleString("en-IN")} |\n`;
+      reportText += `| **HP Loss Set-off Current Year** | ₹${calcRes.oldRegime.housePropertyLossSetOff.toLocaleString("en-IN")} | ₹${calcRes.newRegime.housePropertyLossSetOff.toLocaleString("en-IN")} |\n`;
+      reportText += `| **HP Loss Carry Forward Allowed** | ${calcRes.oldRegime.carryForwardAllowed ? "Yes" : "No"} | ${calcRes.newRegime.carryForwardAllowed ? "Yes" : "No"} |\n`;
+      reportText += `| **HP Loss Carried Forward** | ₹${calcRes.oldRegime.housePropertyLossCarryForward.toLocaleString("en-IN")} | ₹${calcRes.newRegime.housePropertyLossCarryForward.toLocaleString("en-IN")} |\n`;
+      reportText += `| **HP Loss Lapsed Entirely** | ₹${calcRes.oldRegime.housePropertyLossLapsed.toLocaleString("en-IN")} | ₹${calcRes.newRegime.housePropertyLossLapsed.toLocaleString("en-IN")} |\n`;
+    } else if (sec24b > 0) {
+      reportText += `| **Home Loan Interest (Sec 24b)** | ₹${calcRes.oldRegime.homeLoanInterest.toLocaleString("en-IN")} | Not Allowed |\n`;
+    }
+    
     reportText += `| **Taxable Income** | ₹${calcRes.oldRegime.taxableIncome.toLocaleString("en-IN")} | ₹${calcRes.newRegime.taxableIncome.toLocaleString("en-IN")} |\n`;
     reportText += `| **Slab Tax** | ₹${calcRes.oldRegime.slabTax.toLocaleString("en-IN")} | ₹${calcRes.newRegime.slabTax.toLocaleString("en-IN")} |\n`;
     reportText += `| **Rebate (Sec 87A)** | ₹${calcRes.oldRegime.rebate87A.toLocaleString("en-IN")} | ₹${calcRes.newRegime.rebate87A.toLocaleString("en-IN")} |\n`;

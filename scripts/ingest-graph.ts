@@ -13,6 +13,7 @@ const RELATIONSHIPS = [
   { source: "New Regime", target: "Section 80C", type: "DISALLOWS", description: "New Regime disallows Section 80C investment deductions" },
   { source: "New Regime", target: "Section 80D", type: "DISALLOWS", description: "New Regime disallows Section 80D health insurance deductions" },
   { source: "New Regime", target: "Section 24(b)", type: "DISALLOWS", description: "New Regime disallows home loan interest deduction for self-occupied properties (allowed only for let-out)" },
+  { source: "Section 115BAC", target: "House Property Loss", type: "LAPSES_ENTIRELY", description: "Section 115BAC (New Tax Regime) lapses any house property loss entirely: it cannot be set off against other heads nor carried forward." },
   { source: "New Regime", target: "Section 10(13A)", type: "DISALLOWS", description: "New Regime disallows House Rent Allowance (HRA) exemptions" },
   { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹25,000 for taxable income up to ₹7,00,000 in AY 2024-25", applicable_ay: "2024-25" },
   { source: "New Regime", target: "Section 87A", type: "ALLOWS", description: "New Regime allows tax rebate up to ₹20,000 for taxable income up to ₹7,00,000 in AY 2025-26", applicable_ay: "2025-26" },

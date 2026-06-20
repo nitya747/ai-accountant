@@ -41,6 +41,11 @@ export interface TaxBreakdown {
   taxAfterRebate: number;
   cess: number;
   netTax: number;
+  housePropertyLossBeforeSetOff: number;
+  housePropertyLossSetOff: number;
+  housePropertyLossCarryForward: number;
+  housePropertyLossLapsed: number;
+  carryForwardAllowed: boolean;
 }
 
 export interface CalculationResult {
@@ -129,6 +134,12 @@ export function calculateTax(
     ? Math.max(-200000, oldHPIncomeBeforeSetOff) // Set-off cap of 2L against other heads
     : oldHPIncomeBeforeSetOff;
 
+  const oldHPLossBeforeSetOff = oldHPIncomeBeforeSetOff < 0 ? -oldHPIncomeBeforeSetOff : 0;
+  const oldHPLossSetOff = oldHPIncomeBeforeSetOff < 0 ? -oldHPSetOff : 0;
+  const oldHPLossCarryForward = oldHPIncomeBeforeSetOff < 0 ? Math.max(0, oldHPLossBeforeSetOff - oldHPLossSetOff) : 0;
+  const oldHPLossLapsed = 0;
+  const oldCarryForwardAllowed = true;
+
   // New Regime House Property Calculation
   const newInterest = rentalIncome > 0 
     ? (deductions.section24b || 0)
@@ -139,6 +150,12 @@ export function calculateTax(
   const newHPSetOff = newHPIncomeBeforeSetOff < 0 
     ? 0 // Set-off cap is 0 in New Regime (loss cannot set off other heads)
     : newHPIncomeBeforeSetOff;
+
+  const newHPLossBeforeSetOff = newHPIncomeBeforeSetOff < 0 ? -newHPIncomeBeforeSetOff : 0;
+  const newHPLossSetOff = 0;
+  const newHPLossCarryForward = 0;
+  const newHPLossLapsed = newHPIncomeBeforeSetOff < 0 ? -newHPIncomeBeforeSetOff : 0;
+  const newCarryForwardAllowed = false;
 
   // --- REGIME SLABS ---
   // Old Regime Slabs (identical for both years)
@@ -307,6 +324,11 @@ export function calculateTax(
     taxAfterRebate: oldTaxAfterRebate,
     cess: oldCess,
     netTax: oldNetTax,
+    housePropertyLossBeforeSetOff: oldHPLossBeforeSetOff,
+    housePropertyLossSetOff: oldHPLossSetOff,
+    housePropertyLossCarryForward: oldHPLossCarryForward,
+    housePropertyLossLapsed: oldHPLossLapsed,
+    carryForwardAllowed: oldCarryForwardAllowed,
   };
 
   // ==========================================
@@ -356,6 +378,11 @@ export function calculateTax(
     taxAfterRebate: newTaxAfterRebate,
     cess: newCess,
     netTax: newNetTax,
+    housePropertyLossBeforeSetOff: newHPLossBeforeSetOff,
+    housePropertyLossSetOff: newHPLossSetOff,
+    housePropertyLossCarryForward: newHPLossCarryForward,
+    housePropertyLossLapsed: newHPLossLapsed,
+    carryForwardAllowed: newCarryForwardAllowed,
   };
 
   // ==========================================

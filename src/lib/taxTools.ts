@@ -67,7 +67,12 @@ export const tax_slab_calculator = tool({
         home_loan_interest: calculation.oldRegime.homeLoanInterest,
         slab_tax: calculation.oldRegime.slabTax,
         cess: calculation.oldRegime.cess,
-        rebate: calculation.oldRegime.rebate87A
+        rebate: calculation.oldRegime.rebate87A,
+        carry_forward_allowed: calculation.oldRegime.carryForwardAllowed,
+        house_property_loss_before_set_off: calculation.oldRegime.housePropertyLossBeforeSetOff,
+        house_property_loss_set_off: calculation.oldRegime.housePropertyLossSetOff,
+        house_property_loss_carry_forward: calculation.oldRegime.housePropertyLossCarryForward,
+        house_property_loss_lapsed: calculation.oldRegime.housePropertyLossLapsed
       };
 
       const newRegimeStandard = {
@@ -83,7 +88,12 @@ export const tax_slab_calculator = tool({
         home_loan_interest: calculation.newRegime.homeLoanInterest,
         slab_tax: calculation.newRegime.slabTax,
         cess: calculation.newRegime.cess,
-        rebate: calculation.newRegime.rebate87A
+        rebate: calculation.newRegime.rebate87A,
+        carry_forward_allowed: calculation.newRegime.carryForwardAllowed,
+        house_property_loss_before_set_off: calculation.newRegime.housePropertyLossBeforeSetOff,
+        house_property_loss_set_off: calculation.newRegime.housePropertyLossSetOff,
+        house_property_loss_carry_forward: calculation.newRegime.housePropertyLossCarryForward,
+        house_property_loss_lapsed: calculation.newRegime.housePropertyLossLapsed
       };
 
       return {

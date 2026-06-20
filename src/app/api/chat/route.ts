@@ -63,7 +63,10 @@ Guidelines:
   * Rebate (Sec 87A) -> rebate
   * Health & Education Cess (4%) -> cess
   * Net Tax Liability -> total_tax
-Ensure that every number in your response matches these keys exactly. Do not round or alter these values.`;
+Ensure that every number in your response matches these keys exactly. Do not round or alter these values.
+
+Strict Policy Constraints:
+Policy Guardrail: When evaluating the New Tax Regime (Section 115BAC), you must strictly enforce that any loss under the head 'Income from House Property' can neither be set off against any other head of income in the current year NOR carried forward to any future years. The loss lapses entirely. Never advise a user that they can carry forward a house property loss under the New Regime.`;
 
 export function extractAssessmentYear(text: string): string {
   const normalized = text.toLowerCase();

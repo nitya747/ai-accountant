@@ -63,6 +63,21 @@ export function getLabelKey(label: string): string | null {
   if (clean.includes("taxsavings") || clean.includes("savings") || clean.includes("netsavings")) {
     return "taxSavings";
   }
+  if (clean.includes("carryforwardallowed")) {
+    return "carryForwardAllowed";
+  }
+  if (clean.includes("lossbeforesetoff") || clean.includes("housepropertylossbeforesetoff")) {
+    return "housePropertyLossBeforeSetOff";
+  }
+  if (clean.includes("losssetoff") || clean.includes("housepropertylosssetoff")) {
+    return "housePropertyLossSetOff";
+  }
+  if (clean.includes("losscarryforward") || clean.includes("housepropertylosscarryforward") || clean.includes("carryforwardhousepropertyloss")) {
+    return "housePropertyLossCarryForward";
+  }
+  if (clean.includes("losslapsed") || clean.includes("housepropertylosslapsed") || clean.includes("lapsedhousepropertyloss")) {
+    return "housePropertyLossLapsed";
+  }
   
   return null;
 }
@@ -114,11 +129,21 @@ export function validateAndCorrectText(text: string, toolResults: any[]): string
               }
             }
           } else {
-            const correctOld = formatINR(oldRegime[key] ?? 0);
-            const correctNew = formatINR(newRegime[key] ?? 0);
+            let correctOld = "";
+            let correctNew = "";
+
+            if (key === "carryForwardAllowed") {
+              correctOld = oldRegime.carryForwardAllowed ? "Yes" : "No";
+              correctNew = newRegime.carryForwardAllowed ? "Yes" : "No";
+            } else {
+              correctOld = formatINR(oldRegime[key] ?? 0);
+              correctNew = formatINR(newRegime[key] ?? 0);
+            }
 
             // Replace old regime cell (index 2)
-            if (/\d+/.test(cells[2])) {
+            if (key === "carryForwardAllowed") {
+              cells[2] = correctOld;
+            } else if (/\d+/.test(cells[2])) {
               cells[2] = cells[2].replace(/₹?\s*[\d,]+/g, correctOld);
             } else if (cells[2] === "" || cells[2] === "-" || cells[2] === "N/A" || cells[2] === "Not Allowed") {
               // Leave as is
@@ -127,7 +152,9 @@ export function validateAndCorrectText(text: string, toolResults: any[]): string
             }
 
             // Replace new regime cell (index 3)
-            if (/\d+/.test(cells[3])) {
+            if (key === "carryForwardAllowed") {
+              cells[3] = correctNew;
+            } else if (/\d+/.test(cells[3])) {
               cells[3] = cells[3].replace(/₹?\s*[\d,]+/g, correctNew);
             } else if (cells[3] === "" || cells[3] === "-" || cells[3] === "N/A" || cells[3] === "Not Allowed") {
               // Leave as is
@@ -176,6 +203,29 @@ export function checkDiscrepancies(
 ): { isValid: boolean; errorFeedback: string | null; correctedText: string } {
   if (!toolResults || !Array.isArray(toolResults) || toolResults.length === 0) {
     return { isValid: true, errorFeedback: null, correctedText: text };
+  }
+
+  // Strict Policy Check for New Regime House Property Loss
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const calcTool = toolResults.find((r: any) => r.toolName === "tax_slab_calculator");
+  const calcResult = calcTool?.result;
+  if (calcResult?.success && calcResult?.calculation) {
+    const newRegime = calcResult.calculation.newRegime;
+    if (newRegime.housePropertyLossBeforeSetOff > 0) {
+      const lowerText = text.toLowerCase();
+      const canCarryForwardRegex = /(?:can|allows?|allowed|may|is possible)\s+(?:be\s+)?(?:carry|carried)\s+forward/i;
+      const isNewRegimeContext = lowerText.includes("new regime") || lowerText.includes("new tax regime") || lowerText.includes("115bac");
+      const isCarryForwardMentioned = lowerText.includes("carry forward") || lowerText.includes("carried forward");
+      const claimsCarryForwardNewRegime = isNewRegimeContext && isCarryForwardMentioned && canCarryForwardRegex.test(text);
+
+      if (claimsCarryForwardNewRegime) {
+        return {
+          isValid: false,
+          errorFeedback: `Policy Violation: Under the New Tax Regime (Section 115BAC), any loss under the head 'Income from House Property' lapses entirely and cannot be carried forward. Your response suggests that carrying forward the loss is allowed under the New Regime. Please correct this and state clearly that the house property loss lapses entirely.`,
+          correctedText: text
+        };
+      }
+    }
   }
 
   const correctedText = validateAndCorrectText(text, toolResults);

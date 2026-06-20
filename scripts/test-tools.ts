@@ -55,6 +55,20 @@ async function testTaxCalculator() {
   console.log(`- New Regime HP Income (Expected 0): ₹${res5.newRegime.housePropertyIncome.toFixed(2)}`);
   console.log(`- Old Regime Ordinary Taxable (12L - 50k std - 200k interest = 9.5L): ₹${res5.oldRegime.ordinaryTaxableIncome.toFixed(2)}`);
   console.log(`- New Regime Ordinary Taxable (12L - 75k std - 0 interest = 11.25L): ₹${res5.newRegime.ordinaryTaxableIncome.toFixed(2)}`);
+
+  // Test Case 6: House Property Loss Lapsing under New Regime (Rental property)
+  const res6 = calculateTax(
+    { salary: 1200000, rentalIncome: 200000 }, // Rent 2L, NAV = 2L, 24a std deduction = 60k
+    { section24b: 350000 } // Interest 3.5L. HP Income before set-off = 2L - 60k - 3.5L = -2.1L (loss of 2.1L)
+  );
+  console.log("\nTest Case 6: Salary ₹12L + Rental Income ₹2L + Interest ₹3.5L (HP Loss ₹2.1L)");
+  console.log(`- Old Regime HP Income (Expected -200,000 due to set-off cap): ₹${res6.oldRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- Old Regime HP Loss Carry Forward (Expected 10,000): ₹${res6.oldRegime.housePropertyLossCarryForward.toFixed(2)}`);
+  console.log(`- Old Regime HP Loss Carry Forward Allowed: ${res6.oldRegime.carryForwardAllowed}`);
+  console.log(`- New Regime HP Income (Expected 0 due to no set-off): ₹${res6.newRegime.housePropertyIncome.toFixed(2)}`);
+  console.log(`- New Regime HP Loss Carry Forward (Expected 0): ₹${res6.newRegime.housePropertyLossCarryForward.toFixed(2)}`);
+  console.log(`- New Regime HP Loss Lapsed Entirely (Expected 210,000): ₹${res6.newRegime.housePropertyLossLapsed.toFixed(2)}`);
+  console.log(`- New Regime HP Loss Carry Forward Allowed: ${res6.newRegime.carryForwardAllowed}`);
 }
 
 async function testHRA() {
