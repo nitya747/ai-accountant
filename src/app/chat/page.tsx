@@ -37,9 +37,9 @@ export default function ChatPage() {
   }, [router]);
 
   return (
-    <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-zinc-400 font-sans">
+    <div className="flex h-full w-full items-center justify-center bg-brand-bg text-brand-text-secondary font-sans">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-teal-600 border-t-transparent" />
         <p className="text-sm">Setting up your session...</p>
       </div>
     </div>

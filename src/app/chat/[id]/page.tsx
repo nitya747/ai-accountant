@@ -11,7 +11,7 @@ import {
   Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check,
   ThumbsUp, ThumbsDown, MoreHorizontal, GitBranch, Volume2, VolumeX,
   FileText, Mail, Flag, Link as LinkIcon, Workflow, Loader2, X,
-  Search, Database, Cpu
+  Search, Database, Cpu, Mic
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -488,6 +488,11 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     setInput("");
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    if (isChatStreaming || uploading) return;
+    sendMessage({ role: "user", parts: [{ type: "text", text: suggestion }] });
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleSubmit();
@@ -525,9 +530,9 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
 
   if (loading) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-zinc-950 text-zinc-400 font-sans">
+      <div className="flex flex-1 items-center justify-center bg-brand-bg text-brand-text-secondary font-sans">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-teal-600 border-t-transparent" />
           <p className="text-sm">Loading chat history...</p>
         </div>
       </div>
@@ -536,51 +541,77 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
 
   if (error) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-zinc-950 text-zinc-400 p-4 font-sans">
-        <div className="text-center space-y-4 max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
-          <AlertTriangle className="h-10 w-10 text-red-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-white">Error</h3>
-          <p className="text-sm text-zinc-500">{error}</p>
+      <div className="flex flex-1 items-center justify-center bg-brand-bg text-brand-text-secondary p-4 font-sans">
+        <div className="text-center space-y-4 max-w-sm rounded-xl border border-brand-border bg-brand-surface p-6 shadow-sm">
+          <AlertTriangle className="h-10 w-10 text-red-500 mx-auto" strokeWidth={1.5} />
+          <h3 className="text-lg font-semibold text-brand-text-primary">Error</h3>
+          <p className="text-sm text-brand-text-secondary">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col flex-1 h-full bg-zinc-950 overflow-hidden relative">
+    <div className="flex flex-col flex-1 h-full bg-brand-bg overflow-hidden relative">
       {/* Uploading Overlay */}
       {uploading && (
-        <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
+        <div className="absolute inset-0 bg-brand-bg/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
           <div className="relative flex items-center justify-center">
-            <div className="h-16 w-16 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
-            <div className="absolute h-10 w-10 rounded-full bg-emerald-500/10 animate-ping" />
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-brand-teal-600 border-t-transparent" />
+            <div className="absolute h-10 w-10 rounded-full bg-brand-teal-600/10 animate-ping" />
           </div>
           <div className="text-center space-y-1.5 font-sans">
-            <p className="text-lg font-semibold text-white">Analyzing Tax Document</p>
-            <p className="text-sm text-zinc-400 animate-pulse">{uploadProgress}</p>
+            <p className="text-lg font-semibold text-brand-text-primary">Analyzing Tax Document</p>
+            <p className="text-sm text-brand-text-secondary animate-pulse">{uploadProgress}</p>
           </div>
         </div>
       )}
       {/* Top Header */}
-      <div className="h-14 border-b border-zinc-900 px-6 flex items-center justify-between bg-zinc-900/40 backdrop-blur-md sticky top-0 z-10">
+      <div className="h-14 border-b border-brand-border px-6 flex items-center justify-between bg-brand-surface/40 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-2 font-sans">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <h1 className="text-sm font-semibold text-zinc-200">Chatting with Tax AI</h1>
+          <span className="w-2 h-2 rounded-full bg-brand-teal-600 animate-pulse" />
+          <h1 className="text-sm font-bold text-brand-text-primary">Tax Workspace</h1>
         </div>
       </div>
 
       {/* Messages Window */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4 font-sans">
-            <Bot className="h-12 w-12 text-emerald-400 animate-bounce" />
-            <h2 className="text-xl font-bold text-white">Ask your Indian Tax questions</h2>
-            <p className="text-sm text-zinc-500">
-              I can help you compute taxes under the Old vs New Regimes, identify the correct ITR forms, and guide you on Section 80C/80D deductions.
-            </p>
-          </div>
-        ) : (
-          messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="max-w-[1100px] mx-auto p-4 md:p-6 space-y-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-8 py-12 px-4 font-sans">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-brand-teal-100 dark:bg-brand-teal-700/20 border border-brand-teal-600 flex items-center justify-center text-brand-teal-700 dark:text-emerald-400 mx-auto">
+                  <Bot className="h-6 w-6" strokeWidth={1.5} />
+                </div>
+                <h2 className="text-2xl font-bold text-brand-text-primary tracking-tight">
+                  Ask any question about Indian taxation.
+                </h2>
+                <p className="text-sm text-brand-text-secondary max-w-md mx-auto">
+                  Compare Old vs New tax regimes, calculate capital gains tax, look up deductions, or upload financial documents for automated extraction.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
+                {[
+                  "Compare old vs new regime",
+                  "Calculate capital gains tax",
+                  "Section 80C deductions",
+                  "House property income",
+                ].map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="p-4 rounded-xl border border-brand-border bg-brand-surface hover:border-brand-teal-600 hover:bg-brand-teal-100/10 hover:-translate-y-0.5 active:scale-98 transition-all text-left text-sm font-medium text-brand-text-primary shadow-sm hover:shadow-md cursor-pointer flex justify-between items-center group"
+                  >
+                    <span>{suggestion}</span>
+                    <span className="text-brand-text-secondary group-hover:text-brand-teal-600 transition-colors">→</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => {
             const isUser = m.role === "user";
             return (
               <div
@@ -591,11 +622,11 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                 <div
                   className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
                     isUser
-                      ? "bg-zinc-850 border-zinc-700 text-zinc-300"
-                      : "bg-emerald-950/40 border-emerald-900/40 text-emerald-400"
+                      ? "bg-brand-surface border-brand-border text-brand-text-secondary shadow-xs"
+                      : "bg-brand-teal-100 border-brand-teal-600 text-brand-teal-700 dark:bg-brand-teal-700/20 dark:border-brand-teal-600/30 dark:text-emerald-400 shadow-xs"
                   }`}
                 >
-                  {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                  {isUser ? <User className="h-4 w-4" strokeWidth={1.75} /> : <Bot className="h-4 w-4" strokeWidth={1.75} />}
                 </div>
 
                 {/* Content Container */}
@@ -603,11 +634,11 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                   <div
                     className={
                       editingMessageId === m.id
-                        ? "rounded-[2rem] px-6 py-4.5 text-sm shadow-md bg-zinc-900/60 border border-emerald-500 transition-all duration-300 w-full min-w-[300px] sm:min-w-[480px]"
-                        : `rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                        ? "rounded-[2rem] px-6 py-4.5 text-sm shadow-md bg-brand-surface border border-brand-teal-600 transition-all duration-300 w-full min-w-[300px] sm:min-w-[480px] text-brand-text-primary"
+                        : `px-4 py-2.5 text-sm border ${
                             isUser
-                              ? "bg-zinc-800 text-zinc-100"
-                              : "bg-zinc-900/40 border border-zinc-850 text-zinc-200"
+                              ? "bg-white dark:bg-brand-surface border-brand-border text-brand-text-primary rounded-[20px] shadow-xs"
+                              : "bg-white dark:bg-brand-surface border-brand-border text-brand-text-primary rounded-[24px] shadow-sm"
                           }`
                     }
                   >
@@ -618,24 +649,24 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                           value={editingContent}
                           onChange={handleEditingContentChange}
                           onKeyDown={(e) => handleEditingKeyDown(e, m.id)}
-                          className="w-full bg-transparent border-0 p-0 text-zinc-100 text-sm focus:outline-none focus:ring-0 font-sans resize-none overflow-hidden"
+                          className="w-full bg-transparent border-0 p-0 text-brand-text-primary text-sm focus:outline-none focus:ring-0 font-sans resize-none overflow-hidden"
                           autoFocus
                         />
                       ) : (
-                        <div className="whitespace-pre-wrap font-sans">{getMessageText(m)}</div>
+                        <div className="whitespace-pre-wrap font-sans leading-relaxed">{getMessageText(m)}</div>
                       )
                     ) : (
-                      <div className="font-sans select-text space-y-2">
+                      <div className="font-sans select-text space-y-3">
                         {showingThinkingMessageIds[m.id] && (
-                          <div className="mb-3 border border-zinc-800 bg-zinc-900/40 rounded-xl p-3.5 space-y-2 text-xs font-sans text-zinc-400">
-                            <div className="flex items-center gap-1.5 font-semibold text-zinc-300">
-                              <Workflow className="h-3.5 w-3.5 text-violet-400 animate-pulse" />
+                          <div className="mb-3 border border-brand-border bg-brand-surface rounded-xl p-3.5 space-y-2 text-xs font-sans text-brand-text-secondary shadow-xs">
+                            <div className="flex items-center gap-1.5 font-bold text-brand-text-primary">
+                              <Workflow className="h-3.5 w-3.5 text-brand-teal-600 animate-pulse" strokeWidth={1.75} />
                               Thinking Steps
                             </div>
-                            <div className="space-y-1.5 border-l border-zinc-800 pl-3">
+                            <div className="space-y-1.5 border-l border-brand-border pl-3">
                               {getThinkingSteps(m).map((step, idx) => (
                                 <div key={idx} className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span className="w-1.5 h-1.5 rounded-full bg-brand-teal-600 shrink-0" />
                                   <span>{step}</span>
                                 </div>
                               ))}
@@ -652,23 +683,23 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                               if (text.startsWith("Recommendation:") || text.startsWith("Optimal Regime:")) {
                                 const cleanText = text.replace(/^(Recommendation:|Optimal Regime:)\s*/i, "");
                                 return (
-                                  <div className="my-4 p-4.5 rounded-2xl border border-emerald-500/25 bg-emerald-950/10 backdrop-blur-md shadow-lg flex gap-3 font-sans transition-all duration-300 hover:border-emerald-500/40">
-                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20 text-emerald-400">
-                                      <ThumbsUp className="h-4.5 w-4.5 text-emerald-400" />
+                                  <div className="my-4 p-4.5 rounded-r-xl rounded-l-none border-l-4 border-l-brand-teal-600 bg-brand-teal-100/40 dark:bg-brand-teal-700/10 shadow-sm flex gap-3 font-sans transition-all duration-300">
+                                    <div className="w-8 h-8 rounded-lg bg-brand-teal-100 dark:bg-brand-teal-700/20 flex items-center justify-center shrink-0 border border-brand-teal-600/30 text-brand-teal-700 dark:text-emerald-450">
+                                      <ThumbsUp className="h-4.5 w-4.5" strokeWidth={1.75} />
                                     </div>
                                     <div className="space-y-1 flex-1">
-                                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Expert Recommendation</h4>
-                                      <p className="text-sm text-zinc-200 leading-relaxed font-sans">{cleanText}</p>
+                                      <h4 className="text-xs font-bold text-brand-brass uppercase tracking-wider font-sans">Chartered Accountant Recommendation</h4>
+                                      <p className="text-sm text-brand-text-primary leading-relaxed font-sans font-medium">{cleanText}</p>
                                     </div>
                                   </div>
                                 );
                               }
                               return <p className="mb-2 last:mb-0 leading-relaxed font-sans">{children}</p>;
                             },
-                            strong: ({ children }) => <strong className="font-semibold text-emerald-400">{children}</strong>,
-                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1">{children}</ol>,
-                            li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                            strong: ({ children }) => <strong className="font-bold text-brand-teal-700 dark:text-brand-teal-600">{children}</strong>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ol>,
+                            li: ({ children }) => <li className="leading-relaxed font-sans">{children}</li>,
                             a: ({ href, children }) => {
                               if (href && href.startsWith("cite:")) {
                                 const citation = href.replace("cite:", "");
@@ -679,37 +710,37 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                                       href={info.url} 
                                       target="_blank" 
                                       rel="noopener noreferrer" 
-                                      className="text-emerald-400 hover:text-emerald-350 hover:underline border-b border-dashed border-emerald-500/50 cursor-pointer inline-flex items-center gap-0.5"
+                                      className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline border-b border-dashed border-brand-teal-600/50 cursor-pointer inline-flex items-center gap-0.5 font-medium"
                                     >
                                       {children}
-                                      <LinkIcon className="h-2.5 w-2.5 opacity-60" />
+                                      <LinkIcon className="h-2.5 w-2.5 opacity-60" strokeWidth={1.75} />
                                     </a>
-                                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-56 -translate-x-1/2 rounded-xl border border-zinc-850 bg-zinc-950 p-2.5 text-[10px] text-zinc-300 opacity-0 transition-opacity duration-200 group-hover:opacity-100 shadow-2xl leading-normal font-sans text-center">
-                                      <span className="block font-bold text-emerald-400 mb-0.5">{citation} Reference</span>
+                                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-58 -translate-x-1/2 rounded-xl border border-brand-border bg-brand-surface p-2.5 text-[10px] text-brand-text-secondary opacity-0 transition-opacity duration-200 group-hover:opacity-100 shadow-lg leading-normal font-sans text-center">
+                                      <span className="block font-bold text-brand-teal-700 dark:text-brand-teal-600 mb-0.5">{citation} Reference</span>
                                       {info.tooltip}
                                     </span>
                                   </span>
                                 );
                               }
-                              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">{children}</a>;
+                              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline font-medium">{children}</a>;
                             },
-                            code: ({ children }) => <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-350">{children}</code>,
+                            code: ({ children }) => <code className="bg-brand-bg px-1.5 py-0.5 rounded text-xs font-mono text-brand-teal-700 dark:text-emerald-450">{children}</code>,
                           }}
                         >
                           {injectCitationLinks(getMessageText(m))}
                         </ReactMarkdown>
 
                         {isChatStreaming && m.role === "assistant" && m.id === messages[messages.length - 1]?.id && telemetryState.state !== "idle" && (
-                          <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-400 font-sans border border-zinc-850 bg-zinc-900/40 px-3.5 py-2 rounded-xl w-fit transition-all duration-300 animate-fade-in shadow-md">
+                          <div className="mt-3 flex items-center gap-2 text-[10px] text-brand-text-secondary font-sans border border-brand-border bg-brand-surface px-3.5 py-2 rounded-xl w-fit transition-all duration-300 animate-fade-in shadow-xs">
                             {telemetryState.state === "validated" ? (
-                              <Check className="h-3 w-3 text-emerald-400 shrink-0 animate-scale-in" />
+                              <Check className="h-3 w-3 text-brand-teal-600 shrink-0 animate-scale-in" />
                             ) : (
                               <span className="relative flex h-1.5 w-1.5 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal-600/75 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-teal-600"></span>
                               </span>
                             )}
-                            <span className={`font-semibold tracking-wide ${telemetryState.state === 'validated' ? 'text-emerald-400 font-bold' : 'text-zinc-350'}`}>
+                            <span className={`font-semibold tracking-wide ${telemetryState.state === 'validated' ? 'text-brand-teal-700 font-bold' : 'text-brand-text-secondary'}`}>
                               {telemetryState.message}
                             </span>
                           </div>
@@ -769,35 +800,35 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                           onClick={() => setFeedback(prev => ({ ...prev, [m.id]: prev[m.id] === "up" ? undefined : "up" }))}
                           className={`p-1 rounded transition-all cursor-pointer ${
                             feedback[m.id] === "up" 
-                              ? "text-emerald-400 bg-emerald-950/20" 
-                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                              ? "text-brand-teal-700 bg-brand-teal-100/50 dark:text-emerald-400 dark:bg-brand-teal-700/20" 
+                              : "text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg"
                           }`}
                           title="Good response"
                         >
-                          <ThumbsUp className="h-3.5 w-3.5" />
+                          <ThumbsUp className="h-3.5 w-3.5" strokeWidth={1.75} />
                         </button>
                         <button
                           type="button"
                           onClick={() => setFeedback(prev => ({ ...prev, [m.id]: prev[m.id] === "down" ? undefined : "down" }))}
                           className={`p-1 rounded transition-all cursor-pointer ${
                             feedback[m.id] === "down" 
-                              ? "text-rose-400 bg-rose-950/20" 
-                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                              ? "text-red-600 bg-red-100/50 dark:text-red-400 dark:bg-red-950/20" 
+                              : "text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg"
                           }`}
                           title="Bad response"
                         >
-                          <ThumbsDown className="h-3.5 w-3.5" />
+                          <ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleCopy(getMessageText(m), m.id)}
-                          className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                          className="p-1 rounded text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg transition-all cursor-pointer"
                           title="Copy Response"
                         >
                           {copiedMessageId === m.id ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            <Check className="h-3.5 w-3.5 text-brand-teal-700 dark:text-emerald-400" />
                           ) : (
-                            <Copy className="h-3.5 w-3.5" />
+                            <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />
                           )}
                         </button>
                         <button
@@ -808,42 +839,42 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                           }}
                           className={`p-1 rounded transition-all cursor-pointer ${
                             activeDropdownId === m.id 
-                              ? "text-emerald-400 bg-zinc-900" 
-                              : "text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900"
+                              ? "text-brand-teal-750 bg-brand-teal-100/30" 
+                              : "text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg"
                           }`}
                           title="More Actions"
                         >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
+                          <MoreHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
                         </button>
 
                         {/* Dropdown Menu Container */}
                         {activeDropdownId === m.id && (
                           <div 
-                            className="absolute left-0 bottom-full mb-1.5 z-20 w-52 rounded-xl border border-zinc-800 bg-zinc-950 p-1 shadow-2xl animate-fade-in font-sans"
+                            className="absolute left-0 bottom-full mb-1.5 z-20 w-52 rounded-xl border border-brand-border bg-brand-surface p-1 shadow-lg animate-fade-in font-sans"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
                               onClick={() => handleBranch(m.id)}
                               disabled={branchingMessageId !== null}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <GitBranch className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                              <GitBranch className="h-3.5 w-3.5 text-blue-500 shrink-0" strokeWidth={1.75} />
                               Branch in new chat
                             </button>
                             <button
                               type="button"
                               onClick={() => handleListen(getMessageText(m), m.id)}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
                               {speakingMessageId === m.id ? (
                                 <>
-                                  <VolumeX className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                  <VolumeX className="h-3.5 w-3.5 text-amber-500 shrink-0" strokeWidth={1.75} />
                                   Stop listening
-                                </>
+                                  </>
                               ) : (
                                 <>
-                                  <Volume2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                  <Volume2 className="h-3.5 w-3.5 text-brand-teal-700 dark:text-emerald-400 shrink-0" strokeWidth={1.75} />
                                   Listen
                                 </>
                               )}
@@ -851,25 +882,25 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                             <button
                               type="button"
                               onClick={() => handleExportToDocs(getMessageText(m))}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <FileText className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              <FileText className="h-3.5 w-3.5 text-amber-500 shrink-0" strokeWidth={1.75} />
                               Export to Docs
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDraftInGmail(getMessageText(m))}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <Mail className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                              <Mail className="h-3.5 w-3.5 text-red-500 shrink-0" strokeWidth={1.75} />
                               Draft in Gmail
                             </button>
                             <button
                               type="button"
                               onClick={handleReportLegalIssue}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <Flag className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+                              <Flag className="h-3.5 w-3.5 text-orange-500 shrink-0" strokeWidth={1.75} />
                               Report legal issue
                             </button>
                             <button
@@ -878,9 +909,9 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                                 setViewingSourcesMessageId(m.id);
                                 setActiveDropdownId(null);
                               }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <LinkIcon className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                              <LinkIcon className="h-3.5 w-3.5 text-sky-500 shrink-0" strokeWidth={1.75} />
                               View sources
                             </button>
                             <button
@@ -889,9 +920,9 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                                 setShowingThinkingMessageIds(prev => ({ ...prev, [m.id]: !prev[m.id] }));
                                 setActiveDropdownId(null);
                               }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors cursor-pointer"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
                             >
-                              <Workflow className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                              <Workflow className="h-3.5 w-3.5 text-violet-500 shrink-0" strokeWidth={1.75} />
                               {showingThinkingMessageIds[m.id] ? "Hide thinking steps" : "Show thinking steps"}
                             </button>
                           </div>
@@ -991,9 +1022,10 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
 
         <div ref={messagesEndRef} />
       </div>
+    </div>
 
       {/* Input Form */}
-      <div className="p-4 border-t border-zinc-900 bg-zinc-950">
+      <div className="p-4 border-t border-brand-border bg-brand-surface/40 backdrop-blur-md">
         <form onSubmit={onSubmit} className="max-w-3xl mx-auto relative">
           <input
             type="file"
@@ -1002,16 +1034,29 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             onChange={handleFileUpload}
             className="hidden"
           />
-          <div className="flex items-end gap-2 w-full rounded-xl border border-zinc-800 bg-zinc-900/40 p-2 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition-all">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isChatStreaming || uploading}
-              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 disabled:opacity-30 transition-all cursor-pointer shrink-0"
-              title="Upload Form-16 / 26AS PDF"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
+          <div className="flex items-center gap-2 w-full min-h-[56px] rounded-[18px] border border-brand-border bg-white dark:bg-brand-surface p-2 shadow-xs focus-within:border-brand-teal-600 focus-within:ring-1 focus-within:ring-brand-teal-600 transition-all">
+            {/* Left Actions */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isChatStreaming || uploading}
+                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                title="Upload Form-16 / 26AS PDF"
+              >
+                <FileText className="h-4.5 w-4.5" strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={() => showToast("Attachment support is limited to tax PDFs via the Document Upload button.", "info")}
+                disabled={isChatStreaming || uploading}
+                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                title="Attach File"
+              >
+                <Paperclip className="h-4.5 w-4.5" strokeWidth={1.75} />
+              </button>
+            </div>
+            
             <textarea
               ref={promptRef}
               rows={1}
@@ -1019,95 +1064,108 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask anything about Section 80C, capital gains, regimes..."
-              className="flex-1 bg-transparent py-2 px-1 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none overflow-y-auto max-h-48 font-sans"
+              className="flex-1 bg-transparent py-2 px-1 text-sm text-brand-text-primary placeholder-brand-text-secondary focus:outline-none resize-none overflow-y-auto max-h-48 font-sans"
               disabled={isChatStreaming || uploading}
             />
-            <button
-              type="submit"
-              disabled={isChatStreaming || !input.trim() || uploading}
-              className="p-2 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 disabled:opacity-30 disabled:hover:bg-emerald-500 transition-all cursor-pointer shrink-0"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+
+            {/* Right Actions */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => showToast("Voice input is coming soon!", "info")}
+                disabled={isChatStreaming || uploading}
+                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                title="Voice Input"
+              >
+                <Mic className="h-4.5 w-4.5" strokeWidth={1.75} />
+              </button>
+              <button
+                type="submit"
+                disabled={isChatStreaming || !input.trim() || uploading}
+                className="p-2 rounded-xl bg-brand-teal-600 text-white hover:bg-brand-teal-700 active:scale-98 disabled:opacity-30 transition-all cursor-pointer"
+              >
+                <Send className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+            </div>
           </div>
         </form>
-        <p className="text-center text-[10px] text-zinc-650 mt-2 font-sans">
+        <p className="text-center text-[10px] text-brand-text-secondary mt-2 font-sans">
           Answers are for educational purposes. Consult a certified CA for official filings.
         </p>
       </div>
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-zinc-900 border border-zinc-800 backdrop-blur-md px-4 py-3 rounded-xl shadow-2xl animate-fade-in font-sans">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-brand-surface border border-brand-border backdrop-blur-md px-4 py-3 rounded-xl shadow-lg animate-fade-in font-sans">
           {toast.type === "success" ? (
-            <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+            <Check className="h-4 w-4 text-brand-teal-700 dark:text-emerald-400 shrink-0" strokeWidth={1.75} />
           ) : (
-            <Bot className="h-4 w-4 text-emerald-400 shrink-0" />
+            <Bot className="h-4 w-4 text-brand-teal-700 dark:text-emerald-400 shrink-0" strokeWidth={1.75} />
           )}
-          <span className="text-xs font-semibold text-zinc-100">{toast.message}</span>
+          <span className="text-xs font-semibold text-brand-text-primary">{toast.message}</span>
         </div>
       )}
 
       {/* Sources Modal */}
       {viewingSourcesMessageId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-6 font-sans relative animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-brand-surface border border-brand-border rounded-2xl shadow-xl p-6 font-sans relative animate-scale-in">
             <button
               type="button"
               onClick={() => setViewingSourcesMessageId(null)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-zinc-850 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" strokeWidth={1.75} />
             </button>
             
-            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-              <LinkIcon className="h-4.5 w-4.5 text-emerald-400" />
+            <h3 className="text-sm font-bold text-brand-text-primary mb-2 flex items-center gap-2">
+              <LinkIcon className="h-4.5 w-4.5 text-brand-teal-700 dark:text-brand-teal-600" strokeWidth={1.75} />
               Verified Reference Sources
             </h3>
-            <p className="text-xs text-zinc-500 mb-4 font-sans">
+            <p className="text-xs text-brand-text-secondary mb-4 font-sans">
               Here are the verified legal documents and code sections consulted to generate this response.
             </p>
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+              <div className="p-3.5 rounded-xl border border-brand-border bg-white dark:bg-brand-surface space-y-1">
                 <div className="flex justify-between items-center text-[10px]">
-                  <span className="font-semibold text-emerald-400">Income Tax Act, 1961</span>
-                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">96% Match Relevance</span>
+                  <span className="font-bold text-brand-teal-700 dark:text-brand-teal-600">Income Tax Act, 1961</span>
+                  <span className="text-brand-teal-750 bg-brand-teal-100/50 px-2 py-0.5 rounded-full font-bold text-[9px]">96% Match Relevance</span>
                 </div>
-                <p className="text-xs font-semibold text-zinc-200">Section 80C - Deductions in respect of life insurance premia, deferred annuity, etc.</p>
-                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                <p className="text-xs font-bold text-brand-text-primary">Section 80C - Deductions in respect of life insurance premia, deferred annuity, etc.</p>
+                <p className="text-[11px] text-brand-text-secondary leading-relaxed font-sans">
                   Allows deduction for investments made in PPF, NSC, ELSS mutual funds, and principal repayment of home loans, up to a maximum limit of ₹1,50,000 per financial year under the Old Tax Regime.
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+              <div className="p-3.5 rounded-xl border border-brand-border bg-white dark:bg-brand-surface space-y-1">
                 <div className="flex justify-between items-center text-[10px]">
-                  <span className="font-semibold text-emerald-400">Income Tax Rules</span>
-                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">89% Match Relevance</span>
+                  <span className="font-bold text-brand-teal-700 dark:text-brand-teal-600">Income Tax Rules</span>
+                  <span className="text-brand-teal-750 bg-brand-teal-100/50 px-2 py-0.5 rounded-full font-bold text-[9px]">89% Match Relevance</span>
                 </div>
-                <p className="text-xs font-semibold text-zinc-200">Section 115BAC - Tax on income of certain individuals and HUF</p>
-                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                <p className="text-xs font-bold text-brand-text-primary">Section 115BAC - Tax on income of certain individuals and HUF</p>
+                <p className="text-[11px] text-brand-text-secondary leading-relaxed font-sans">
                   Governs the new tax regime parameters, tax slabs, and the list of foregone exemptions/deductions required to opt for lower concessional tax rates.
                 </p>
               </div>
 
-              <div className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-950/40 space-y-1">
+              <div className="p-3.5 rounded-xl border border-brand-border bg-white dark:bg-brand-surface space-y-1">
                 <div className="flex justify-between items-center text-[10px]">
-                  <span className="font-semibold text-emerald-400">CBDT Circulars</span>
-                  <span className="text-zinc-500 bg-zinc-900 px-2 py-0.5 rounded-full font-medium">78% Match Relevance</span>
+                  <span className="font-bold text-brand-teal-700 dark:text-brand-teal-600">CBDT Circulars</span>
+                  <span className="text-brand-teal-750 bg-brand-teal-100/50 px-2 py-0.5 rounded-full font-bold text-[9px]">78% Match Relevance</span>
                 </div>
-                <p className="text-xs font-semibold text-zinc-200">Circular No. 04/2026 - Clarifications on TDS deduction under Section 192</p>
-                <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                <p className="text-xs font-bold text-brand-text-primary">Circular No. 04/2026 - Clarifications on TDS deduction under Section 192</p>
+                <p className="text-[11px] text-brand-text-secondary leading-relaxed font-sans">
                   Provides standard operational instructions for employers on deducting tax at source (TDS) based on declarations of investment choices by employees under regimes.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 pt-4 border-t border-zinc-850 flex justify-end">
+            <div className="mt-5 pt-4 border-t border-brand-border flex justify-end">
               <button
                 type="button"
                 onClick={() => setViewingSourcesMessageId(null)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-brand-surface hover:bg-brand-bg border border-brand-border text-brand-text-primary text-xs font-semibold transition-colors cursor-pointer"
               >
                 Close Sources
               </button>
@@ -1118,14 +1176,14 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
 
       {/* Branching Loading Overlay */}
       {branchingMessageId && (
-        <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
+        <div className="absolute inset-0 bg-brand-bg/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-4">
           <div className="relative flex items-center justify-center">
-            <Loader2 className="h-16 w-16 animate-spin text-emerald-500" />
-            <div className="absolute h-10 w-10 rounded-full bg-emerald-500/10 animate-ping" />
+            <Loader2 className="h-16 w-16 animate-spin text-brand-teal-600" strokeWidth={1.75} />
+            <div className="absolute h-10 w-10 rounded-full bg-brand-teal-600/10 animate-ping" />
           </div>
           <div className="text-center space-y-1.5 font-sans">
-            <p className="text-lg font-semibold text-white">Branching Chat Session</p>
-            <p className="text-sm text-zinc-400 animate-pulse">Copying message history and creating new workspace...</p>
+            <p className="text-lg font-bold text-brand-text-primary">Branching Chat Session</p>
+            <p className="text-sm text-brand-text-secondary animate-pulse">Copying message history and creating new workspace...</p>
           </div>
         </div>
       )}
@@ -1284,14 +1342,14 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
       const delta = oldVal - newVal;
       
       let deltaText = "-";
-      let deltaClass = "text-zinc-400 font-medium";
+      let deltaClass = "text-brand-text-secondary font-medium font-numbers";
       
       if (delta > 0) {
         deltaText = `${formatINR(delta)} (New Regime)`;
-        deltaClass = "text-emerald-450 bg-emerald-950/20 px-2.5 py-0.5 rounded-lg font-semibold border border-emerald-900/40 text-[10px]";
+        deltaClass = "text-brand-teal-700 bg-brand-teal-100 px-2.5 py-0.5 rounded-lg font-bold border border-brand-teal-600/30 text-[10px] font-numbers";
       } else if (delta < 0) {
         deltaText = `${formatINR(Math.abs(delta))} (Old Regime)`;
-        deltaClass = "text-amber-450 bg-amber-950/20 px-2.5 py-0.5 rounded-lg font-semibold border border-amber-900/40 text-[10px]";
+        deltaClass = "text-brand-brass bg-brand-brass-soft/30 px-2.5 py-0.5 rounded-lg font-bold border border-brand-brass/30 text-[10px] font-numbers";
       }
       
       formattedCells.push({ value: deltaText, className: deltaClass, isObject: true } as any);
@@ -1301,20 +1359,20 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
   });
 
   return (
-    <div className="overflow-x-auto my-4 rounded-xl border border-zinc-800 bg-zinc-900/20 shadow-xl">
+    <div className="overflow-x-auto my-4 rounded-xl border border-brand-border bg-white dark:bg-brand-surface shadow-xs">
       <table className="w-full text-left text-xs border-collapse">
         <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900/40 backdrop-blur-md">
+          <tr className="border-b border-brand-border bg-brand-bg/60 backdrop-blur-md">
             {tableHeaders.map((h, idx) => (
-              <th key={idx} className="p-3.5 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
+              <th key={idx} className="p-3.5 text-brand-text-secondary font-bold uppercase tracking-wider text-[10px] font-sans">
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-900">
+        <tbody className="divide-y divide-brand-border">
           {rows.map((row: any, rIdx: number) => (
-            <tr key={rIdx} className="hover:bg-zinc-900/20 transition-colors">
+            <tr key={rIdx} className="hover:bg-brand-bg/40 transition-colors">
               {row.map((cell: any, cIdx: number) => {
                 if (cell && typeof cell === "object" && cell.isObject) {
                   return (
@@ -1324,8 +1382,11 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
                   );
                 }
 
-                let cellClass = "p-3.5 text-zinc-300 font-sans";
-                if (cIdx === 0) cellClass = "p-3.5 text-zinc-200 font-semibold font-sans";
+                let cellClass = "p-3.5 text-brand-text-primary font-sans";
+                if (cIdx === 0) cellClass = "p-3.5 text-brand-text-primary font-bold font-sans";
+                // If it's a number cell, apply the IBM Plex Sans utility
+                const isNum = cIdx > 0 && (typeof cell === "string" && (cell.includes("₹") || /^\s*[\d,.-]+/.test(cell)));
+                if (isNum) cellClass += " font-numbers";
 
                 // If it is the Delta column that was already returned by the LLM, highlight it
                 if (hasDeltaCol && cIdx === headers.length - 1 && typeof cell === "string") {
@@ -1333,7 +1394,7 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
                   if (num > 0) {
                     return (
                       <td key={cIdx} className="p-3.5">
-                        <span className="text-emerald-400 bg-emerald-950/20 px-2.5 py-0.5 rounded-lg font-semibold border border-emerald-900/40 text-[10px]">
+                        <span className="text-brand-teal-700 bg-brand-teal-100 px-2.5 py-0.5 rounded-lg font-bold border border-brand-teal-600/30 text-[10px] font-numbers">
                           {cell}
                         </span>
                       </td>

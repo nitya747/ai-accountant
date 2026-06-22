@@ -34,33 +34,32 @@ export default function RegisterPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setError("");
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-8 backdrop-blur-xl">
+    <div className="flex min-h-screen items-center justify-center bg-brand-bg px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 rounded-2xl border border-brand-border bg-white dark:bg-brand-surface p-8 shadow-lg">
         <div className="text-center">
-          <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
+          <h2 className="text-3xl font-extrabold text-brand-teal-700 dark:text-brand-teal-600">
             Corpus
           </h2>
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="mt-2 text-sm text-brand-text-secondary font-sans">
             Create an account to start managing your tax queries
           </p>
         </div>
 
         {error && (
-          <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400 text-center">
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-650 text-center font-semibold font-sans">
             {error}
           </div>
         )}
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
+          <div className="space-y-4 font-sans">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-zinc-300">
+              <label htmlFor="name" className="block text-sm font-semibold text-brand-text-primary">
                 Full Name
               </label>
               <input
@@ -70,13 +69,13 @@ export default function RegisterPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder-zinc-500 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
+                className="mt-1 block w-full rounded-lg border border-brand-border bg-brand-bg px-3 py-2 text-brand-text-primary placeholder-brand-text-secondary/60 shadow-xs focus:border-brand-teal-600 focus:outline-none focus:ring-1 focus:ring-brand-teal-600 sm:text-sm"
                 placeholder="Nitya Sharma"
               />
             </div>
 
             <div>
-              <label htmlFor="email-address" className="block text-sm font-medium text-zinc-300">
+              <label htmlFor="email-address" className="block text-sm font-semibold text-brand-text-primary">
                 Email address
               </label>
               <input
@@ -87,13 +86,13 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder-zinc-500 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
+                className="mt-1 block w-full rounded-lg border border-brand-border bg-brand-bg px-3 py-2 text-brand-text-primary placeholder-brand-text-secondary/60 shadow-xs focus:border-brand-teal-600 focus:outline-none focus:ring-1 focus:ring-brand-teal-600 sm:text-sm"
                 placeholder="nitya@example.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-zinc-300">
+              <label htmlFor="password" className="block text-sm font-semibold text-brand-text-primary">
                 Password
               </label>
               <input
@@ -104,7 +103,7 @@ export default function RegisterPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-zinc-100 placeholder-zinc-500 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
+                className="mt-1 block w-full rounded-lg border border-brand-border bg-brand-bg px-3 py-2 text-brand-text-primary placeholder-brand-text-secondary/60 shadow-xs focus:border-brand-teal-600 focus:outline-none focus:ring-1 focus:ring-brand-teal-600 sm:text-sm"
                 placeholder="••••••••"
               />
             </div>
@@ -114,16 +113,16 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex w-full justify-center rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:from-emerald-400 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-zinc-950 transition-all duration-200 disabled:opacity-50"
+              className="flex w-full justify-center rounded-lg bg-brand-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-brand-teal-700 focus:outline-none focus:ring-2 focus:ring-brand-teal-600 focus:ring-offset-2 focus:ring-offset-brand-bg transition-all duration-200 disabled:opacity-50 active:scale-98 cursor-pointer"
             >
               {loading ? "Creating account..." : "Sign up"}
             </button>
           </div>
         </form>
 
-        <div className="text-center text-sm text-zinc-400 font-sans">
+        <div className="text-center text-sm text-brand-text-secondary font-sans">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-emerald-400 hover:text-emerald-300 transition-colors">
+          <Link href="/login" className="font-semibold text-brand-teal-700 hover:text-brand-teal-650 transition-colors">
             Sign in
           </Link>
         </div>

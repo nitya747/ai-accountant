@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Plus, MessageSquare, Trash2, LogOut, Menu, X } from "lucide-react";
+import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface SessionData {
   id: string;
@@ -19,6 +19,21 @@ export function Sidebar() {
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load state from localStorage on client side
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved !== null) {
+      setIsCollapsed(saved === "true");
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    const newVal = !isCollapsed;
+    setIsCollapsed(newVal);
+    localStorage.setItem("sidebar-collapsed", String(newVal));
+  };
 
   const fetchSessions = async () => {
     try {
@@ -86,126 +101,175 @@ export function Sidebar() {
     }
   };
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800 text-zinc-200">
-      {/* Sidebar Header */}
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-        <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-          Corpus
-        </span>
-        <button
-          onClick={handleCreateSession}
-          className="p-1.5 rounded-lg border border-zinc-700 bg-zinc-800/50 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-          title="New Chat"
-        >
-          <Plus className="h-4.5 w-4.5" />
-        </button>
-      </div>
+  const SidebarContent = ({ isMobile = false }) => {
+    const collapsed = !isMobile && isCollapsed;
 
-      {/* Sessions List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-1">
-        <button
-          onClick={handleCreateSession}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 hover:bg-zinc-800/40 transition-all text-sm font-medium text-left"
-        >
-          <Plus className="h-4 w-4" />
-          New Chat
-        </button>
-
-        <div className="pt-4 pb-1 text-xs font-semibold text-zinc-500 px-3 uppercase tracking-wider font-sans">
-          History
-        </div>
-
-        {loading ? (
-          <div className="text-zinc-500 text-sm text-center py-4 font-sans">Loading chats...</div>
-        ) : sessions.length === 0 ? (
-          <div className="text-zinc-600 text-xs text-center py-4 italic font-sans">No chat history</div>
-        ) : (
-          sessions.map((s) => {
-            const isActive = pathname === `/chat/${s.id}`;
-            return (
-              <Link
-                key={s.id}
-                href={`/chat/${s.id}`}
-                className={`group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all ${
-                  isActive
-                    ? "bg-emerald-950/30 text-emerald-300 border border-emerald-900/30"
-                    : "hover:bg-zinc-850 text-zinc-400 hover:text-zinc-200"
-                }`}
+    return (
+      <div className="flex flex-col h-full bg-brand-surface border-r border-brand-border text-brand-text-primary transition-all duration-300">
+        {/* Sidebar Header */}
+        <div className={`p-4 border-b border-brand-border flex items-center justify-between ${collapsed ? "flex-col gap-4 px-2" : ""}`}>
+          {collapsed ? (
+            <span className="text-xl font-extrabold text-brand-teal-700 dark:text-brand-teal-600 tracking-wider">
+              C.
+            </span>
+          ) : (
+            <span className="text-xl font-extrabold text-brand-teal-700 dark:text-brand-teal-600 tracking-tight">
+              Corpus
+            </span>
+          )}
+          
+          <div className={`flex items-center gap-1.5 ${collapsed ? "flex-col" : ""}`}>
+            {!isMobile && (
+              <button
+                onClick={toggleCollapse}
+                className="p-1.5 rounded-lg border border-brand-border hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer"
+                title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? "text-emerald-400" : "text-zinc-500"}`} />
-                  <span className="truncate text-left font-medium font-sans">{s.title}</span>
-                </div>
-                <button
-                  onClick={(e) => handleDeleteSession(s.id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-zinc-500 rounded-md hover:bg-zinc-800 transition-all"
-                  title="Delete Chat"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </Link>
-            );
-          })
-        )}
-      </div>
-
-      {/* Sidebar Footer */}
-      <div className="p-4 border-t border-zinc-800 flex items-center justify-between gap-3">
-        <div className="min-w-0 flex flex-col font-sans">
-          <span className="text-sm font-semibold text-zinc-200 truncate">
-            {session?.user?.name || "User"}
-          </span>
-          <span className="text-xs text-zinc-500 truncate">
-            {session?.user?.email}
-          </span>
+                {isCollapsed ? <ChevronRight className="h-4 w-4" strokeWidth={1.75} /> : <ChevronLeft className="h-4 w-4" strokeWidth={1.75} />}
+              </button>
+            )}
+            <button
+              onClick={handleCreateSession}
+              className="p-1.5 rounded-lg border border-brand-border hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer"
+              title="New Chat"
+            >
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/" })}
-          className="p-2 text-zinc-500 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors"
-          title="Sign Out"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+
+        {/* Sessions List */}
+        <div className={`flex-1 overflow-y-auto p-3 space-y-1 ${collapsed ? "px-1.5" : ""}`}>
+          {!collapsed ? (
+            <button
+              onClick={handleCreateSession}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-dashed border-brand-border text-brand-text-secondary hover:text-brand-text-primary hover:border-brand-teal-600 hover:bg-brand-teal-100/30 transition-all text-sm font-medium text-left cursor-pointer"
+            >
+              <Plus className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+              New Chat
+            </button>
+          ) : (
+            <button
+              onClick={handleCreateSession}
+              className="w-full flex items-center justify-center p-2.5 rounded-xl border border-dashed border-brand-border text-brand-text-secondary hover:text-brand-text-primary hover:border-brand-teal-600 hover:bg-brand-teal-100/30 transition-all cursor-pointer"
+              title="New Chat"
+            >
+              <Plus className="h-4.5 w-4.5 shrink-0" strokeWidth={1.75} />
+            </button>
+          )}
+
+          {!collapsed && (
+            <div className="pt-4 pb-1 text-[10px] font-bold text-brand-text-secondary px-3 uppercase tracking-wider font-sans">
+              Recent Chats
+            </div>
+          )}
+
+          {loading ? (
+            <div className="text-brand-text-secondary text-xs text-center py-4 font-sans">
+              {collapsed ? "..." : "Loading chats..."}
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="text-brand-text-secondary/60 text-[11px] text-center py-4 italic font-sans">
+              {collapsed ? "" : "No chat history"}
+            </div>
+          ) : (
+            sessions.map((s) => {
+              const isActive = pathname === `/chat/${s.id}`;
+              return (
+                <Link
+                  key={s.id}
+                  href={`/chat/${s.id}`}
+                  className={`group flex items-center justify-between rounded-[14px] text-sm transition-all border ${
+                    collapsed ? "p-2.5 justify-center" : "px-3 py-2.5"
+                  } ${
+                    isActive
+                      ? "bg-brand-teal-100 border-brand-teal-600 text-brand-teal-700 dark:bg-brand-teal-700/20 dark:border-brand-teal-600 dark:text-emerald-450 font-semibold"
+                      : "border-transparent hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary"
+                  }`}
+                  title={collapsed ? s.title : undefined}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? "text-brand-teal-600 dark:text-emerald-450" : "text-brand-text-secondary"}`} strokeWidth={1.75} />
+                    {!collapsed && <span className="truncate text-left font-medium font-sans">{s.title}</span>}
+                  </div>
+                  {!collapsed && (
+                    <button
+                      onClick={(e) => handleDeleteSession(s.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-600 dark:hover:text-red-400 text-brand-text-secondary rounded-md hover:bg-brand-bg transition-all cursor-pointer"
+                      title="Delete Chat"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                  )}
+                </Link>
+              );
+            })
+          )}
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className={`p-4 border-t border-brand-border flex items-center justify-between gap-3 ${collapsed ? "flex-col px-2 py-4" : ""}`}>
+          {!collapsed ? (
+            <div className="min-w-0 flex flex-col font-sans">
+              <span className="text-sm font-semibold text-brand-text-primary truncate">
+                {session?.user?.name || "Taxpayer"}
+              </span>
+              <span className="text-xs text-brand-text-secondary truncate">
+                {session?.user?.email}
+              </span>
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-brand-teal-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {(session?.user?.name || "T")[0].toUpperCase()}
+            </div>
+          )}
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            className={`p-2 text-brand-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
+            title="Sign Out"
+          >
+            <LogOut className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden flex items-center justify-between bg-zinc-900 border-b border-zinc-800 px-4 h-14 w-full sticky top-0 z-40 shrink-0">
+      <div className="lg:hidden flex items-center justify-between bg-brand-surface border-b border-brand-border px-4 h-14 w-full sticky top-0 z-40 shrink-0">
         <button
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800"
+          className="p-1 rounded-md text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg cursor-pointer"
         >
-          {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {isMobileOpen ? <X className="h-6 w-6" strokeWidth={1.75} /> : <Menu className="h-6 w-6" strokeWidth={1.75} />}
         </button>
-        <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
+        <span className="text-lg font-extrabold text-brand-teal-700 dark:text-brand-teal-600">
           Corpus
         </span>
         <button
           onClick={handleCreateSession}
-          className="p-1.5 rounded-lg border border-zinc-700 bg-zinc-800/50 text-zinc-300 hover:text-white"
+          className="p-1.5 rounded-lg border border-brand-border bg-brand-surface text-brand-text-secondary hover:text-brand-text-primary cursor-pointer"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" strokeWidth={1.75} />
         </button>
       </div>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block w-64 shrink-0 h-full">
-        <SidebarContent />
+      <div className={`hidden lg:block shrink-0 h-full transition-all duration-300 ${isCollapsed ? "w-[72px]" : "w-[280px]"}`}>
+        <SidebarContent isMobile={false} />
       </div>
 
       {/* Mobile Drawer Overlay */}
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsMobileOpen(false)}
           />
-          <div className="relative w-64 max-w-xs h-full flex flex-col bg-zinc-900 shadow-2xl">
-            <SidebarContent />
+          <div className="relative w-[280px] max-w-xs h-full flex flex-col bg-brand-surface shadow-2xl animate-fade-in">
+            <SidebarContent isMobile={true} />
           </div>
         </div>
       )}

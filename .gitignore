@@ -50,3 +50,5 @@ next-env.d.ts
 *.db-wal
 
 /.cache
+/scratch
+
