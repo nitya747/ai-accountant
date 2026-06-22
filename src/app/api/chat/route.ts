@@ -311,9 +311,10 @@ export async function POST(req: Request) {
                       type: "tool-result",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      output: typeof tr.result === 'string'
-                        ? { type: 'text', value: tr.result }
-                        : { type: 'json', value: tr.result },
+                      output: {
+                        type: "json",
+                        value: tr.result
+                      },
                     })),
                   });
                 }
@@ -418,9 +419,10 @@ export async function POST(req: Request) {
                         type: "tool-result",
                         toolCallId: "speculative-calc-call",
                         toolName: "tax_slab_calculator",
-                        output: typeof speculativeResult.result === 'string'
-                          ? { type: 'text', value: speculativeResult.result }
-                          : { type: 'json', value: speculativeResult.result },
+                        output: {
+                          type: "json",
+                          value: speculativeResult.result,
+                        },
                       }
                     ]
                   });
