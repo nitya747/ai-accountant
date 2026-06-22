@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight, Sun, Moon } from "lucide-react";
 
 interface SessionData {
   id: string;
@@ -20,6 +20,29 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  // Load state from localStorage on client side
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
+      setTheme("dark");
+    } else {
+      setTheme("light");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   // Load state from localStorage on client side
   useEffect(() => {
@@ -208,7 +231,7 @@ export function Sidebar() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className={`p-4 border-t border-brand-border flex items-center justify-between gap-3 ${collapsed ? "flex-col px-2 py-4" : ""}`}>
+        <div className={`p-4 border-t border-brand-border flex items-center justify-between gap-3 ${collapsed ? "flex-col px-2 py-4 animate-fade-in" : ""}`}>
           {!collapsed ? (
             <div className="min-w-0 flex flex-col font-sans">
               <span className="text-sm font-semibold text-brand-text-primary truncate">
@@ -223,13 +246,26 @@ export function Sidebar() {
               {(session?.user?.name || "T")[0].toUpperCase()}
             </div>
           )}
-          <button
-            onClick={() => signOut({ callbackUrl: "/" })}
-            className={`p-2 text-brand-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
-            title="Sign Out"
-          >
-            <LogOut className="h-4 w-4" strokeWidth={1.75} />
-          </button>
+          <div className={`flex items-center gap-1.5 shrink-0 ${collapsed ? "flex-col w-full" : ""}`}>
+            <button
+              onClick={toggleTheme}
+              className={`p-2 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
+              title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+            >
+              {theme === "light" ? (
+                <Moon className="h-4 w-4" strokeWidth={1.75} />
+              ) : (
+                <Sun className="h-4 w-4" strokeWidth={1.75} />
+              )}
+            </button>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className={`p-2 text-brand-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
       </div>
     );

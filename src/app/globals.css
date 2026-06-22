@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   /* Brand colors - Light Mode */
   --brand-teal-700: #0F766E;
@@ -16,16 +18,15 @@
   --brand-text-secondary: #6B7280;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Brand colors - Dark Mode */
-    --brand-bg: #0D1117;
-    --brand-surface: #161B22;
-    --brand-border: #2D333B;
-    --brand-text-primary: #E6EDF3;
-    --brand-text-secondary: #8B949E;
-  }
+html.dark {
+  /* Brand colors - Dark Mode */
+  --brand-bg: #0D1117;
+  --brand-surface: #161B22;
+  --brand-border: #2D333B;
+  --brand-text-primary: #E6EDF3;
+  --brand-text-secondary: #8B949E;
 }
+
 
 @theme inline {
   --font-sans: var(--font-inter);
