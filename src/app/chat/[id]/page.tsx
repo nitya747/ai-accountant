@@ -658,25 +658,19 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Messages Window */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className="max-w-[1100px] mx-auto p-4 md:p-6 space-y-6">
+      <div className={`flex-1 overflow-y-auto scrollbar-thin ${messages.length === 0 ? "flex flex-col" : ""}`}>
+        <div className={`max-w-[1100px] w-full mx-auto p-4 md:p-6 ${messages.length === 0 ? "flex-1 flex flex-col justify-center" : "space-y-6"}`}>
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-8 py-12 px-4 font-sans">
-              <div className="flex flex-col items-center space-y-4">
+            <div className="flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-10 py-8 md:py-12 px-4 font-sans">
+              <div className="flex flex-col items-center space-y-6">
                 {/* Premium badge */}
-                <div className="inline-flex items-center gap-2 rounded-full bg-brand-teal-100/50 dark:bg-brand-teal-700/10 px-3 py-1 text-xs font-semibold text-brand-teal-700 dark:text-brand-teal-650 border border-brand-border/40">
+                <div className="inline-flex items-center gap-2 rounded-full bg-brand-teal-100/50 dark:bg-brand-teal-700/10 px-3 py-1.5 text-xs font-semibold text-brand-teal-700 dark:text-brand-teal-650 border border-brand-border/40">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-teal-600 animate-pulse" />
                   AY 2025–26 & AY 2024–25 Active Workspace
                 </div>
                 
-                {/* Premium avatar styling */}
-                <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-brand-surface border border-brand-border shadow-xs mx-auto outline outline-4 outline-brand-teal-600/5 hover:outline-brand-teal-600/10 transition-all duration-300">
-                  <Bot className="h-8 w-8 text-brand-teal-700 dark:text-brand-teal-600" strokeWidth={1.5} />
-                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-teal-600 border-2 border-white dark:border-brand-surface animate-pulse" />
-                </div>
-                
-                <div className="space-y-2">
-                  <h2 className="text-3xl font-extrabold text-brand-text-primary tracking-tight leading-tight">
+                <div className="space-y-3">
+                  <h2 className="text-3xl md:text-4xl font-extrabold text-brand-text-primary tracking-tight leading-tight">
                     Corpus Tax Workspace
                   </h2>
                   <p className="text-sm text-brand-text-secondary max-w-md mx-auto leading-relaxed">
@@ -1007,58 +1001,58 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
         {isChatStreaming && messages.length > 0 && messages[messages.length - 1].role === "user" && (
           <div className="flex gap-4 max-w-3xl mr-auto animate-fade-in">
             {/* Avatar */}
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border bg-emerald-950/40 border-emerald-900/40 text-emerald-400">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border border-brand-teal-600 bg-white text-brand-teal-700 shadow-sm outline outline-2 outline-offset-2 outline-brand-teal-600/20 dark:bg-brand-surface dark:text-emerald-450 dark:outline-brand-teal-600/10">
               <Bot className="h-4 w-4 animate-pulse" />
             </div>
 
             {/* Content Container */}
             <div className="flex flex-col gap-2 max-w-full">
-              <div className="rounded-2xl px-5 py-4 text-sm shadow-lg bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800/80 text-zinc-300 min-w-[280px] max-w-sm space-y-3">
+              <div className="rounded-[24px] px-5 py-4 text-sm shadow-sm bg-white dark:bg-brand-surface border border-brand-border text-brand-text-primary min-w-[280px] max-w-sm space-y-3">
                 <div className="flex items-center gap-2.5">
                   <div className="relative flex items-center justify-center">
-                    <div className="absolute inset-0 bg-emerald-500/20 rounded-full animate-ping" />
-                    <div className="h-6 w-6 rounded-full bg-emerald-950 border border-emerald-500/30 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-brand-teal-600/20 rounded-full animate-ping" />
+                    <div className="h-6 w-6 rounded-full bg-brand-teal-100 dark:bg-emerald-950 border border-brand-teal-600/30 dark:border-emerald-500/30 flex items-center justify-center">
                       {telemetryState.state === "searching_db" || telemetryState.state === "searching_web" ? (
-                        <Search className="h-3.5 w-3.5 text-emerald-400" />
+                        <Search className="h-3.5 w-3.5 text-brand-teal-700 dark:text-emerald-400" />
                       ) : telemetryState.state === "analyzing" ? (
-                        <Cpu className="h-3.5 w-3.5 text-emerald-400" />
+                        <Cpu className="h-3.5 w-3.5 text-brand-teal-700 dark:text-emerald-400" />
                       ) : (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-teal-700 dark:text-emerald-400" />
                       )}
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-zinc-200 text-xs">AI Assistant is active</h4>
-                    <p className="text-[11px] text-zinc-400 font-medium mt-0.5">{telemetryState.message || "Thinking..."}</p>
+                    <h4 className="font-semibold text-brand-text-primary text-xs">AI Assistant is active</h4>
+                    <p className="text-[11px] text-brand-text-secondary font-medium mt-0.5">{telemetryState.message || "Thinking..."}</p>
                   </div>
                 </div>
 
                 {/* Sub-steps status list */}
-                <div className="pt-2 border-t border-zinc-850 space-y-2 text-[11px] text-zinc-500">
+                <div className="pt-2 border-t border-brand-border space-y-2 text-[11px] text-brand-text-secondary">
                   <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${
                       telemetryState.state === "thinking" 
-                        ? "bg-violet-400 animate-pulse" 
-                        : "bg-emerald-500"
+                        ? "bg-brand-teal-600 animate-pulse" 
+                        : "bg-emerald-600"
                     }`} />
-                    <span className={telemetryState.state === "thinking" ? "text-zinc-300 font-medium" : "text-zinc-650"}>
+                    <span className={telemetryState.state === "thinking" ? "text-brand-text-primary font-semibold" : "text-brand-text-secondary"}>
                       Analyzing question context
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${
                       telemetryState.state === "searching_db" || telemetryState.state === "searching_web"
-                        ? "bg-violet-400 animate-pulse"
+                        ? "bg-brand-teal-600 animate-pulse"
                         : (telemetryState.state === "thinking" || telemetryState.state === "idle")
-                          ? "bg-zinc-800"
-                          : "bg-emerald-500"
+                          ? "bg-zinc-200 dark:bg-zinc-800"
+                          : "bg-emerald-600"
                     }`} />
                     <span className={
                       telemetryState.state === "searching_db" || telemetryState.state === "searching_web"
-                        ? "text-zinc-300 font-medium" 
+                        ? "text-brand-text-primary font-semibold" 
                         : (telemetryState.state === "thinking" || telemetryState.state === "idle")
-                          ? "text-zinc-650"
-                          : "text-zinc-550"
+                          ? "text-brand-text-secondary/40"
+                          : "text-brand-text-secondary"
                     }>
                       {telemetryState.state === "searching_web" ? "Searching the web for latest laws" : "Retrieving relevant tax provisions"}
                     </span>
@@ -1066,17 +1060,17 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                   <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${
                       telemetryState.state === "analyzing"
-                        ? "bg-violet-400 animate-pulse"
+                        ? "bg-brand-teal-600 animate-pulse"
                         : (telemetryState.state === "thinking" || telemetryState.state === "searching_db" || telemetryState.state === "searching_web" || telemetryState.state === "idle")
-                          ? "bg-zinc-800"
-                          : "bg-emerald-500"
+                          ? "bg-zinc-200 dark:bg-zinc-800"
+                          : "bg-emerald-600"
                     }`} />
                     <span className={
                       telemetryState.state === "analyzing"
-                        ? "text-zinc-300 font-medium"
+                        ? "text-brand-text-primary font-semibold"
                         : (telemetryState.state === "thinking" || telemetryState.state === "searching_db" || telemetryState.state === "searching_web" || telemetryState.state === "idle")
-                          ? "text-zinc-650"
-                          : "text-zinc-550"
+                          ? "text-brand-text-secondary/40"
+                          : "text-brand-text-secondary"
                     }>
                       Synthesizing responses
                     </span>
