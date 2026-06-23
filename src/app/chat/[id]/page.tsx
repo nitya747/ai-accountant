@@ -674,7 +674,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
                 {[
                   "Compare old vs new regime",
                   "Calculate capital gains tax",
@@ -685,10 +685,9 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                     key={idx}
                     type="button"
                     onClick={() => handleSuggestionClick(suggestion)}
-                    className="p-4 rounded-xl border border-brand-border bg-brand-surface hover:border-brand-teal-600 hover:bg-brand-teal-100/10 hover:-translate-y-0.5 active:scale-98 transition-all text-left text-sm font-medium text-brand-text-primary shadow-sm hover:shadow-md cursor-pointer flex justify-between items-center group"
+                    className="p-6 rounded-xl border border-brand-border bg-brand-surface hover:border-brand-teal-600 hover:bg-brand-teal-100/10 hover:-translate-y-0.5 active:scale-98 transition-all text-left text-sm font-medium text-brand-text-primary shadow-sm hover:shadow-md cursor-pointer block"
                   >
-                    <span>{suggestion}</span>
-                    <span className="text-brand-text-secondary group-hover:text-brand-teal-600 transition-colors">→</span>
+                    {suggestion}
                   </button>
                 ))}
               </div>
