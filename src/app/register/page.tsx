@@ -70,7 +70,7 @@ export default function RegisterPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="mt-1 block w-full rounded-lg border border-brand-border bg-brand-bg px-3 py-2 text-brand-text-primary placeholder-brand-text-secondary/60 shadow-xs focus:border-brand-teal-600 focus:outline-none focus:ring-1 focus:ring-brand-teal-600 sm:text-sm"
-                placeholder="Nitya Sharma"
+                placeholder="John Doe"
               />
             </div>
 
@@ -87,7 +87,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-1 block w-full rounded-lg border border-brand-border bg-brand-bg px-3 py-2 text-brand-text-primary placeholder-brand-text-secondary/60 shadow-xs focus:border-brand-teal-600 focus:outline-none focus:ring-1 focus:ring-brand-teal-600 sm:text-sm"
-                placeholder="nitya@example.com"
+                placeholder="john@example.com"
               />
             </div>
 
