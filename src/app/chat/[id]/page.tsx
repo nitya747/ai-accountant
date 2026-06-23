@@ -782,7 +782,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                       <button
                         type="button"
                         onClick={handleCancelEdit}
-                        className="text-zinc-300 hover:text-white transition-colors cursor-pointer font-sans font-medium"
+                        className="text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer font-sans font-medium"
                       >
                         Cancel
                       </button>
@@ -790,7 +790,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                         type="button"
                         onClick={() => handleSaveEdit(m.id)}
                         disabled={!editingContent.trim() || isChatStreaming}
-                        className="px-5.5 py-1.5 rounded-full bg-zinc-850 text-zinc-300 hover:bg-zinc-750 hover:text-white disabled:text-zinc-500 disabled:bg-zinc-900/40 disabled:border-zinc-800/40 disabled:opacity-50 disabled:cursor-not-allowed border border-zinc-800 transition-all cursor-pointer font-sans font-medium shadow-sm"
+                        className="px-5.5 py-1.5 rounded-full bg-brand-teal-700 text-white hover:bg-brand-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer font-sans font-medium shadow-sm"
                       >
                         Update
                       </button>
@@ -802,11 +802,11 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                       <button
                         type="button"
                         onClick={() => handleCopy(getMessageText(m), m.id)}
-                        className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                        className="p-1 rounded text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg transition-all cursor-pointer"
                         title="Copy Prompt"
                       >
                         {copiedMessageId === m.id ? (
-                          <Check className="h-3 w-3 text-emerald-400" />
+                          <Check className="h-3 w-3 text-brand-teal-700 dark:text-emerald-400" />
                         ) : (
                           <Copy className="h-3 w-3" />
                         )}
@@ -814,7 +814,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                       <button
                         type="button"
                         onClick={() => handleStartEdit(m.id, getMessageText(m))}
-                        className="p-1 rounded text-zinc-500 hover:text-zinc-350 hover:bg-zinc-900 transition-all cursor-pointer"
+                        className="p-1 rounded text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg transition-all cursor-pointer"
                         title="Edit Prompt"
                       >
                         <Pencil className="h-3 w-3" />

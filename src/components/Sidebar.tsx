@@ -214,8 +214,10 @@ export function Sidebar() {
           <div className="relative">
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className={`w-full flex items-center justify-between p-3.5 rounded-xl border border-brand-border bg-white dark:bg-brand-surface hover:bg-brand-bg/50 transition-all text-left cursor-pointer shadow-xs ${
-                collapsed ? "justify-center" : ""
+              className={`flex items-center rounded-xl border border-brand-border bg-white dark:bg-brand-surface hover:bg-brand-bg/50 transition-all cursor-pointer shadow-xs ${
+                collapsed 
+                  ? "w-12 h-12 justify-center p-1 mx-auto" 
+                  : "w-full justify-between p-3.5 text-left"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
