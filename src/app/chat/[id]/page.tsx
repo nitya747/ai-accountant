@@ -1103,16 +1103,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isChatStreaming || uploading}
                   className="p-2 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
-                  title="Upload Form-16 / 26AS PDF"
-                >
-                  <FileText className="h-4.5 w-4.5" strokeWidth={1.75} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => showToast("Attachment support is limited to tax PDFs via the Document Upload button.", "info")}
-                  disabled={isChatStreaming || uploading}
-                  className="p-2 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
-                  title="Attach File"
+                  title="Attach Form-16 / 26AS PDF"
                 >
                   <Paperclip className="h-4.5 w-4.5" strokeWidth={1.75} />
                 </button>
