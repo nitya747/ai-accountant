@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight, Sun, Moon, Gem } from "lucide-react";
+import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight, Gem } from "lucide-react";
 
 interface SessionData {
   id: string;
@@ -20,30 +20,7 @@ export function Sidebar() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-
-  // Load state from localStorage on client side
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
-      setTheme("dark");
-    } else {
-      setTheme("light");
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-    if (newTheme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  };
 
   // Load state from localStorage on client side
   useEffect(() => {
@@ -269,22 +246,6 @@ export function Sidebar() {
             {/* User Dropdown Menu */}
             {isUserMenuOpen && (
               <div className="absolute bottom-full left-0 mb-2 w-full min-w-[200px] z-50 rounded-xl border border-brand-border bg-white dark:bg-brand-surface p-1 shadow-lg animate-fade-in font-sans">
-                <button
-                  onClick={toggleTheme}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
-                >
-                  {theme === "light" ? (
-                    <>
-                      <Moon className="h-4 w-4 text-brand-teal-700 mr-1" strokeWidth={1.75} />
-                      Dark Mode
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="h-4 w-4 text-amber-500 mr-1" strokeWidth={1.75} />
-                      Light Mode
-                    </>
-                  )}
-                </button>
                 <button
                   onClick={() => signOut({ callbackUrl: "/" })}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors cursor-pointer"
