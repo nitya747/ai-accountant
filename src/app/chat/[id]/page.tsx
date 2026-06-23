@@ -662,34 +662,74 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
         <div className="max-w-[1100px] mx-auto p-4 md:p-6 space-y-6">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-8 py-12 px-4 font-sans">
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-xl bg-brand-teal-100 dark:bg-brand-teal-700/20 border border-brand-teal-600 flex items-center justify-center text-brand-teal-700 dark:text-emerald-400 mx-auto">
-                  <Bot className="h-6 w-6" strokeWidth={1.5} />
+              <div className="flex flex-col items-center space-y-4">
+                {/* Premium badge */}
+                <div className="inline-flex items-center gap-2 rounded-full bg-brand-teal-100/50 dark:bg-brand-teal-700/10 px-3 py-1 text-xs font-semibold text-brand-teal-700 dark:text-brand-teal-650 border border-brand-border/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-teal-600 animate-pulse" />
+                  AY 2025–26 & AY 2024–25 Active Workspace
                 </div>
-                <h2 className="text-2xl font-bold text-brand-text-primary tracking-tight">
-                  Ask any question about Indian taxation.
-                </h2>
-                <p className="text-sm text-brand-text-secondary max-w-md mx-auto">
-                  Compare Old vs New tax regimes, calculate capital gains tax, look up deductions, or upload financial documents for automated extraction.
-                </p>
+                
+                {/* Premium avatar styling */}
+                <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-brand-surface border border-brand-border shadow-xs mx-auto outline outline-4 outline-brand-teal-600/5 hover:outline-brand-teal-600/10 transition-all duration-300">
+                  <Bot className="h-8 w-8 text-brand-teal-700 dark:text-brand-teal-600" strokeWidth={1.5} />
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-brand-teal-600 border-2 border-white dark:border-brand-surface animate-pulse" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-extrabold text-brand-text-primary tracking-tight leading-tight">
+                    Corpus Tax Workspace
+                  </h2>
+                  <p className="text-sm text-brand-text-secondary max-w-md mx-auto leading-relaxed">
+                    Ask questions, upload Form-16 or investment receipts, and plan your taxes with an intelligent, citation-backed AI assistant.
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
                 {[
-                  "Compare old vs new regime",
-                  "Calculate capital gains tax",
-                  "Section 80C deductions",
-                  "House property income",
-                ].map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className="p-6 rounded-xl border border-brand-border bg-brand-surface hover:border-brand-teal-600 hover:bg-brand-teal-100/10 hover:-translate-y-0.5 active:scale-98 transition-all text-left text-sm font-medium text-brand-text-primary shadow-sm hover:shadow-md cursor-pointer block"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+                  {
+                    title: "Compare old vs new regime",
+                    desc: "Analyze liability and get custom slab recommendations.",
+                    icon: GitBranch,
+                  },
+                  {
+                    title: "Calculate capital gains tax",
+                    desc: "Compute taxes for equity, mutual funds, or property.",
+                    icon: Calculator,
+                  },
+                  {
+                    title: "Section 80C deductions",
+                    desc: "Assess limits for PF, ELSS, insurance, and loans.",
+                    icon: Percent,
+                  },
+                  {
+                    title: "House property income",
+                    desc: "Evaluate rental income and home loan deductions.",
+                    icon: Home,
+                  },
+                ].map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleSuggestionClick(item.title)}
+                      className="p-6 rounded-xl border border-brand-border bg-brand-surface hover:border-brand-teal-600 hover:bg-brand-teal-100/5 hover:-translate-y-0.5 active:scale-98 transition-all text-left shadow-sm hover:shadow-md cursor-pointer flex gap-4 items-start group duration-200"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-brand-teal-100/50 dark:bg-brand-teal-700/10 border border-brand-border group-hover:border-brand-teal-600 flex items-center justify-center shrink-0 text-brand-teal-700 dark:text-emerald-450 group-hover:bg-brand-teal-600 group-hover:text-white transition-all duration-200">
+                        <Icon className="h-5 w-5" strokeWidth={1.5} />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-brand-text-primary leading-tight">
+                          {item.title}
+                        </h4>
+                        <p className="text-xs text-brand-text-secondary leading-normal">
+                          {item.desc}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (
