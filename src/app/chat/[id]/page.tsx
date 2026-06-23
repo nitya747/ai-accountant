@@ -11,7 +11,7 @@ import {
   Send, User, Bot, AlertTriangle, Paperclip, Copy, Pencil, Check,
   ThumbsUp, ThumbsDown, MoreHorizontal, GitBranch, Volume2, VolumeX,
   FileText, Mail, Flag, Link as LinkIcon, Workflow, Loader2, X,
-  Search, Database, Cpu, Mic
+  Search, Database, Cpu, Mic, Home, Percent, Calculator
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -551,6 +551,89 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  const renderMessageContent = (m: any) => {
+    const rawText = injectCitationLinks(getMessageText(m));
+    
+    if (!rawText.includes("<CalculationGrid>")) {
+      return (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={markdownComponents}
+        >
+          {rawText}
+        </ReactMarkdown>
+      );
+    }
+
+    const parts = rawText.split(/(<CalculationGrid>[\s\S]*?<\/CalculationGrid>)/g);
+
+    return (
+      <div className="space-y-4">
+        {parts.map((part, idx) => {
+          if (part.startsWith("<CalculationGrid>")) {
+            const cardRegex = /<CalculationCard\s+icon="([^"]*)"\s+title="([^"]*)"\s+value="([^"]*)"\s*\/>/g;
+            const cards: Array<{ icon: string; title: string; value: string }> = [];
+            let match;
+            while ((match = cardRegex.exec(part)) !== null) {
+              cards.push({
+                icon: match[1],
+                title: match[2],
+                value: match[3],
+              });
+            }
+
+            return (
+              <div key={idx} className="my-5 flex flex-col sm:flex-row gap-4 w-full">
+                {cards.map((card, cIdx) => {
+                  let IconComponent = Bot;
+                  if (card.icon === "home") {
+                    IconComponent = Home; 
+                  } else if (card.icon === "percent") {
+                    IconComponent = Percent;
+                  } else {
+                    IconComponent = Calculator;
+                  }
+
+                  return (
+                    <div 
+                      key={cIdx} 
+                      className="flex-1 p-4.5 rounded-2xl border border-brand-border bg-[#F8FAFC] dark:bg-brand-surface/40 flex items-center gap-4.5 shadow-2xs hover:shadow-xs transition-all duration-300"
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-[#DFF7F4] dark:bg-brand-teal-700/20 border border-brand-teal-650/10 flex items-center justify-center shrink-0 text-brand-teal-700 dark:text-emerald-450">
+                        <IconComponent className="h-5 w-5" strokeWidth={1.75} />
+                      </div>
+                      <div className="flex flex-col min-w-0 font-sans">
+                        <span className="text-[11px] font-bold text-brand-text-secondary uppercase tracking-wider leading-none">
+                          {card.title}
+                        </span>
+                        <span className="text-sm font-extrabold text-[#222222] dark:text-[#E6EDF3] mt-1.5 font-numbers leading-tight truncate">
+                          {card.value}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          } else {
+            if (!part.trim()) return null;
+            return (
+              <ReactMarkdown
+                key={idx}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={markdownComponents}
+              >
+                {part}
+              </ReactMarkdown>
+            );
+          }
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col flex-1 h-full bg-brand-bg overflow-hidden relative">
       {/* Uploading Overlay */}
@@ -620,10 +703,10 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
               >
                 {/* Avatar */}
                 <div
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
+                  className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border ${
                     isUser
                       ? "bg-brand-surface border-brand-border text-brand-text-secondary shadow-xs"
-                      : "bg-brand-teal-100 border-brand-teal-600 text-brand-teal-700 dark:bg-brand-teal-700/20 dark:border-brand-teal-600/30 dark:text-emerald-400 shadow-xs"
+                      : "border-brand-teal-600 bg-white text-brand-teal-700 shadow-sm outline outline-2 outline-offset-2 outline-brand-teal-600/20 dark:bg-brand-surface dark:text-emerald-450 dark:outline-brand-teal-600/10"
                   }`}
                 >
                   {isUser ? <User className="h-4 w-4" strokeWidth={1.75} /> : <Bot className="h-4 w-4" strokeWidth={1.75} />}
@@ -673,62 +756,7 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
                             </div>
                           </div>
                         )}
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={{
-                            table: CustomPremiumTable,
-                            p: ({ children }) => {
-                              const text = getTextContent(children);
-                              if (text.startsWith("Recommendation:") || text.startsWith("Optimal Regime:")) {
-                                const cleanText = text.replace(/^(Recommendation:|Optimal Regime:)\s*/i, "");
-                                return (
-                                  <div className="my-4 p-4.5 rounded-r-xl rounded-l-none border-l-4 border-l-brand-teal-600 bg-brand-teal-100/40 dark:bg-brand-teal-700/10 shadow-sm flex gap-3 font-sans transition-all duration-300">
-                                    <div className="w-8 h-8 rounded-lg bg-brand-teal-100 dark:bg-brand-teal-700/20 flex items-center justify-center shrink-0 border border-brand-teal-600/30 text-brand-teal-700 dark:text-emerald-450">
-                                      <ThumbsUp className="h-4.5 w-4.5" strokeWidth={1.75} />
-                                    </div>
-                                    <div className="space-y-1 flex-1">
-                                      <h4 className="text-xs font-bold text-brand-brass uppercase tracking-wider font-sans">Chartered Accountant Recommendation</h4>
-                                      <p className="text-sm text-brand-text-primary leading-relaxed font-sans font-medium">{cleanText}</p>
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return <p className="mb-2 last:mb-0 leading-relaxed font-sans">{children}</p>;
-                            },
-                            strong: ({ children }) => <strong className="font-bold text-brand-teal-700 dark:text-brand-teal-600">{children}</strong>,
-                            ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ol>,
-                            li: ({ children }) => <li className="leading-relaxed font-sans">{children}</li>,
-                            a: ({ href, children }) => {
-                              if (href && href.startsWith("cite:")) {
-                                const citation = href.replace("cite:", "");
-                                const info = CITATION_DICTIONARY[citation] || { url: "https://www.incometaxindia.gov.in", tooltip: "Official Income Tax reference" };
-                                return (
-                                  <span className="group relative inline-block">
-                                    <a 
-                                      href={info.url} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
-                                      className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline border-b border-dashed border-brand-teal-600/50 cursor-pointer inline-flex items-center gap-0.5 font-medium"
-                                    >
-                                      {children}
-                                      <LinkIcon className="h-2.5 w-2.5 opacity-60" strokeWidth={1.75} />
-                                    </a>
-                                    <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-58 -translate-x-1/2 rounded-xl border border-brand-border bg-brand-surface p-2.5 text-[10px] text-brand-text-secondary opacity-0 transition-opacity duration-200 group-hover:opacity-100 shadow-lg leading-normal font-sans text-center">
-                                      <span className="block font-bold text-brand-teal-700 dark:text-brand-teal-600 mb-0.5">{citation} Reference</span>
-                                      {info.tooltip}
-                                    </span>
-                                  </span>
-                                );
-                              }
-                              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline font-medium">{children}</a>;
-                            },
-                            code: ({ children }) => <code className="bg-brand-bg px-1.5 py-0.5 rounded text-xs font-mono text-brand-teal-700 dark:text-emerald-450">{children}</code>,
-                          }}
-                        >
-                          {injectCitationLinks(getMessageText(m))}
-                        </ReactMarkdown>
+                        {renderMessageContent(m)}
 
                         {isChatStreaming && m.role === "assistant" && m.id === messages[messages.length - 1]?.id && telemetryState.state !== "idle" && (
                           <div className="mt-3 flex items-center gap-2 text-[10px] text-brand-text-secondary font-sans border border-brand-border bg-brand-surface px-3.5 py-2 rounded-xl w-fit transition-all duration-300 animate-fade-in shadow-xs">
@@ -1034,60 +1062,60 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
             onChange={handleFileUpload}
             className="hidden"
           />
-          <div className="flex items-center gap-2 w-full min-h-[56px] rounded-[18px] border border-brand-border bg-white dark:bg-brand-surface p-2 shadow-xs focus-within:border-brand-teal-600 focus-within:ring-1 focus-within:ring-brand-teal-600 transition-all">
-            {/* Left Actions */}
-            <div className="flex items-center gap-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
+            <div className="flex items-center gap-2 w-full min-h-[56px] rounded-[28px] border border-brand-border bg-white dark:bg-brand-surface p-2 pl-4 shadow-xs focus-within:border-brand-teal-600 focus-within:ring-1 focus-within:ring-brand-teal-600 transition-all">
+              {/* Left Actions */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isChatStreaming || uploading}
+                  className="p-2 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                  title="Upload Form-16 / 26AS PDF"
+                >
+                  <FileText className="h-4.5 w-4.5" strokeWidth={1.75} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showToast("Attachment support is limited to tax PDFs via the Document Upload button.", "info")}
+                  disabled={isChatStreaming || uploading}
+                  className="p-2 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                  title="Attach File"
+                >
+                  <Paperclip className="h-4.5 w-4.5" strokeWidth={1.75} />
+                </button>
+              </div>
+              
+              <textarea
+                ref={promptRef}
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything about Section 80C, capital gains, regimes..."
+                className="flex-1 bg-transparent py-2 px-2 text-sm text-brand-text-primary placeholder-brand-text-secondary focus:outline-none resize-none overflow-y-auto max-h-48 font-sans"
                 disabled={isChatStreaming || uploading}
-                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
-                title="Upload Form-16 / 26AS PDF"
-              >
-                <FileText className="h-4.5 w-4.5" strokeWidth={1.75} />
-              </button>
-              <button
-                type="button"
-                onClick={() => showToast("Attachment support is limited to tax PDFs via the Document Upload button.", "info")}
-                disabled={isChatStreaming || uploading}
-                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
-                title="Attach File"
-              >
-                <Paperclip className="h-4.5 w-4.5" strokeWidth={1.75} />
-              </button>
-            </div>
-            
-            <textarea
-              ref={promptRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything about Section 80C, capital gains, regimes..."
-              className="flex-1 bg-transparent py-2 px-1 text-sm text-brand-text-primary placeholder-brand-text-secondary focus:outline-none resize-none overflow-y-auto max-h-48 font-sans"
-              disabled={isChatStreaming || uploading}
-            />
+              />
 
-            {/* Right Actions */}
-            <div className="flex items-center gap-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => showToast("Voice input is coming soon!", "info")}
-                disabled={isChatStreaming || uploading}
-                className="p-2 rounded-xl text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
-                title="Voice Input"
-              >
-                <Mic className="h-4.5 w-4.5" strokeWidth={1.75} />
-              </button>
-              <button
-                type="submit"
-                disabled={isChatStreaming || !input.trim() || uploading}
-                className="p-2 rounded-xl bg-brand-teal-600 text-white hover:bg-brand-teal-700 active:scale-98 disabled:opacity-30 transition-all cursor-pointer"
-              >
-                <Send className="h-4 w-4" strokeWidth={1.75} />
-              </button>
+              {/* Right Actions */}
+              <div className="flex items-center gap-1.5 shrink-0 pr-1">
+                <button
+                  type="button"
+                  onClick={() => showToast("Voice input is coming soon!", "info")}
+                  disabled={isChatStreaming || uploading}
+                  className="p-2 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg disabled:opacity-30 transition-all cursor-pointer"
+                  title="Voice Input"
+                >
+                  <Mic className="h-4.5 w-4.5" strokeWidth={1.75} />
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChatStreaming || !input.trim() || uploading}
+                  className="w-10 h-10 rounded-full bg-brand-teal-700 text-white flex items-center justify-center hover:bg-brand-teal-600 transition-all cursor-pointer shadow-sm disabled:opacity-35 disabled:cursor-not-allowed shrink-0"
+                >
+                  <Send className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </div>
             </div>
-          </div>
         </form>
         <p className="text-center text-[10px] text-brand-text-secondary mt-2 font-sans">
           Answers are for educational purposes. Consult a certified CA for official filings.
@@ -1282,8 +1310,8 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
 
   if (!theadChild || !tbodyChild) {
     return (
-      <div className="overflow-x-auto my-4 rounded-xl border border-zinc-800 bg-zinc-900/20 shadow-xl">
-        <table className="w-full text-left text-xs border-collapse divide-y divide-zinc-800">{children}</table>
+      <div className="overflow-x-auto my-4 rounded-xl border border-brand-border bg-white dark:bg-brand-surface shadow-xs">
+        <table className="w-full text-left text-xs border-collapse divide-y divide-brand-border">{children}</table>
       </div>
     );
   }
@@ -1291,8 +1319,8 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
   const headerRow = React.Children.toArray(theadChild.props.children)[0] as any;
   if (!headerRow) {
     return (
-      <div className="overflow-x-auto my-4 rounded-xl border border-zinc-800 bg-zinc-900/20 shadow-xl">
-        <table className="w-full text-left text-xs border-collapse divide-y divide-zinc-800">{children}</table>
+      <div className="overflow-x-auto my-4 rounded-xl border border-brand-border bg-white dark:bg-brand-surface shadow-xs">
+        <table className="w-full text-left text-xs border-collapse divide-y divide-brand-border">{children}</table>
       </div>
     );
   }
@@ -1323,6 +1351,8 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
   if (shouldCalculateDelta) {
     tableHeaders.push("Delta (Savings)");
   }
+
+  const allHeadersEmpty = tableHeaders.every(h => !h || h.trim() === "");
 
   const rows = React.Children.toArray(tbodyChild.props.children).map((tr: any) => {
     const cells = React.Children.toArray(tr.props.children).map((td: any) => getTextContent(td));
@@ -1361,57 +1391,133 @@ const CustomPremiumTable = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div className="overflow-x-auto my-4 rounded-xl border border-brand-border bg-white dark:bg-brand-surface shadow-xs">
       <table className="w-full text-left text-xs border-collapse">
-        <thead>
-          <tr className="border-b border-brand-border bg-brand-bg/60 backdrop-blur-md">
-            {tableHeaders.map((h, idx) => (
-              <th key={idx} className="p-3.5 text-brand-text-secondary font-bold uppercase tracking-wider text-[10px] font-sans">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        {!allHeadersEmpty && (
+          <thead>
+            <tr className="border-b border-brand-border bg-brand-bg/60 backdrop-blur-md">
+              {tableHeaders.map((h, idx) => (
+                <th key={idx} className="p-3.5 text-brand-text-secondary font-bold uppercase tracking-wider text-[10px] font-sans">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
         <tbody className="divide-y divide-brand-border">
-          {rows.map((row: any, rIdx: number) => (
-            <tr key={rIdx} className="hover:bg-brand-bg/40 transition-colors">
-              {row.map((cell: any, cIdx: number) => {
-                if (cell && typeof cell === "object" && cell.isObject) {
-                  return (
-                    <td key={cIdx} className="p-3.5">
-                      <span className={cell.className}>{cell.value}</span>
-                    </td>
-                  );
-                }
+          {rows.map((row: any, rIdx: number) => {
+            // Determine if this is a summary row (e.g., contains "Final Income", "Net Tax", "Total Tax", "Savings", or it's the last row)
+            const isSummaryRow = rIdx === rows.length - 1 || row.some((cell: any) => {
+              const cellStr = typeof cell === "object" && cell !== null && cell.value ? String(cell.value) : String(cell);
+              const lower = cellStr.toLowerCase();
+              return lower.includes("final income") || lower.includes("net tax") || lower.includes("total tax") || lower.includes("savings");
+            });
 
-                let cellClass = "p-3.5 text-brand-text-primary font-sans";
-                if (cIdx === 0) cellClass = "p-3.5 text-brand-text-primary font-bold font-sans";
-                // If it's a number cell, apply the IBM Plex Sans utility
-                const isNum = cIdx > 0 && (typeof cell === "string" && (cell.includes("₹") || /^\s*[\d,.-]+/.test(cell)));
-                if (isNum) cellClass += " font-numbers";
+            const trClass = isSummaryRow 
+              ? "bg-[#DFF7F4]/30 dark:bg-brand-teal-700/10 font-bold border-t border-brand-teal-600/20"
+              : "hover:bg-brand-bg/40 transition-colors";
 
-                // If it is the Delta column that was already returned by the LLM, highlight it
-                if (hasDeltaCol && cIdx === headers.length - 1 && typeof cell === "string") {
-                  const num = parseNum(cell);
-                  if (num > 0) {
+            return (
+              <tr key={rIdx} className={trClass}>
+                {row.map((cell: any, cIdx: number) => {
+                  if (cell && typeof cell === "object" && cell.isObject) {
                     return (
                       <td key={cIdx} className="p-3.5">
-                        <span className="text-brand-teal-700 bg-brand-teal-100 px-2.5 py-0.5 rounded-lg font-bold border border-brand-teal-600/30 text-[10px] font-numbers">
-                          {cell}
-                        </span>
+                        <span className={cell.className}>{cell.value}</span>
                       </td>
                     );
                   }
-                }
 
-                return (
-                  <td key={cIdx} className={cellClass}>
-                    {cell}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+                  let cellClass = "p-3.5 text-brand-text-primary font-sans";
+                  if (cIdx === 0) cellClass = "p-3.5 text-brand-text-primary font-bold font-sans";
+                  
+                  // If it's a number cell, apply the IBM Plex Sans utility
+                  const isNum = cIdx > 0 && (typeof cell === "string" && (cell.includes("₹") || /^\s*[\d,.-]+/.test(cell)));
+                  if (isNum) cellClass += " font-numbers";
+
+                  const cellStr = String(cell);
+                  const isLoss = cellStr.includes("[LOSS]") || cellStr.includes("(₹") || cellStr.includes("-₹") || cellStr.toLowerCase().includes("loss");
+                  
+                  if (isLoss) {
+                    cellClass += " text-red-650 font-bold";
+                  } else if (isSummaryRow) {
+                    cellClass += " font-bold";
+                  }
+
+                  // If it is the Delta column that was already returned by the LLM, highlight it
+                  if (hasDeltaCol && cIdx === headers.length - 1 && typeof cell === "string") {
+                    const num = parseNum(cell);
+                    if (num > 0) {
+                      return (
+                        <td key={cIdx} className="p-3.5">
+                          <span className="text-brand-teal-700 bg-brand-teal-100 px-2.5 py-0.5 rounded-lg font-bold border border-brand-teal-600/30 text-[10px] font-numbers">
+                            {cell}
+                          </span>
+                        </td>
+                      );
+                    }
+                  }
+
+                  return (
+                    <td key={cIdx} className={cellClass}>
+                      {cell}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
+};
+
+const markdownComponents = {
+  table: CustomPremiumTable,
+  p: ({ children }: any) => {
+    const text = getTextContent(children);
+    if (text.startsWith("Recommendation:") || text.startsWith("Optimal Regime:")) {
+      const cleanText = text.replace(/^(Recommendation:|Optimal Regime:)\s*/i, "");
+      return (
+        <div className="my-4 p-4.5 rounded-r-xl rounded-l-none border-l-4 border-l-brand-teal-600 bg-brand-teal-100/40 dark:bg-brand-teal-700/10 shadow-sm flex gap-3 font-sans transition-all duration-300">
+          <div className="w-8 h-8 rounded-lg bg-brand-teal-100 dark:bg-brand-teal-700/20 flex items-center justify-center shrink-0 border border-brand-teal-600/30 text-brand-teal-700 dark:text-emerald-450">
+            <ThumbsUp className="h-4.5 w-4.5" strokeWidth={1.75} />
+          </div>
+          <div className="space-y-1 flex-1">
+            <h4 className="text-xs font-bold text-brand-brass uppercase tracking-wider font-sans">Chartered Accountant Recommendation</h4>
+            <p className="text-sm text-brand-text-primary leading-relaxed font-sans font-medium">{cleanText}</p>
+          </div>
+        </div>
+      );
+    }
+    return <p className="mb-2 last:mb-0 leading-relaxed font-sans">{children}</p>;
+  },
+  strong: ({ children }: any) => <strong className="font-bold text-brand-teal-700 dark:text-brand-teal-600">{children}</strong>,
+  ul: ({ children }: any) => <ul className="list-disc pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-5 mb-2 space-y-1 text-brand-text-primary">{children}</ol>,
+  li: ({ children }: any) => <li className="leading-relaxed font-sans">{children}</li>,
+  a: ({ href, children }: any) => {
+    if (href && href.startsWith("cite:")) {
+      const citation = href.replace("cite:", "");
+      const info = CITATION_DICTIONARY[citation] || { url: "https://www.incometaxindia.gov.in", tooltip: "Official Income Tax reference" };
+      return (
+        <span className="group relative inline-block">
+          <a 
+            href={info.url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline border-b border-dashed border-brand-teal-600/50 cursor-pointer inline-flex items-center gap-0.5 font-medium"
+          >
+            {children}
+            <LinkIcon className="h-2.5 w-2.5 opacity-60" strokeWidth={1.75} />
+          </a>
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 w-58 -translate-x-1/2 rounded-xl border border-brand-border bg-brand-surface p-2.5 text-[10px] text-brand-text-secondary opacity-0 transition-opacity duration-200 group-hover:opacity-100 shadow-lg leading-normal font-sans text-center">
+            <span className="block font-bold text-brand-teal-700 dark:text-brand-teal-600 mb-0.5">{citation} Reference</span>
+            {info.tooltip}
+          </span>
+        </span>
+      );
+    }
+    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-brand-teal-700 dark:text-brand-teal-600 hover:underline font-medium">{children}</a>;
+  },
+  code: ({ children }: any) => <code className="bg-brand-bg px-1.5 py-0.5 rounded text-xs font-mono text-brand-teal-700 dark:text-emerald-450">{children}</code>,
 };

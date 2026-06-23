@@ -1,9 +1,14 @@
-import middleware from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
 
-// In Next.js 16, 'middleware' is renamed to 'proxy'. 
-// We export the next-auth handler as both default and the named 'proxy' export.
-export const proxy = middleware;
-export { default } from "next-auth/middleware";
+// In Next.js 16, 'middleware' is renamed to 'proxy'.
+// We wrap NextAuth's middleware using withAuth and custom sign-in redirect options.
+export const proxy = withAuth({
+  pages: {
+    signIn: "/login",
+  },
+});
+
+export default proxy;
 
 export const config = {
   matcher: [

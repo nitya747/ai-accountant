@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight, Sun, Moon } from "lucide-react";
+import { Plus, MessageSquare, Trash2, LogOut, Menu, X, ChevronLeft, ChevronRight, Sun, Moon, Gem } from "lucide-react";
 
 interface SessionData {
   id: string;
@@ -21,6 +21,7 @@ export function Sidebar() {
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   // Load state from localStorage on client side
   useEffect(() => {
@@ -124,24 +125,30 @@ export function Sidebar() {
     }
   };
 
+  const getUserInitials = (name: string) => {
+    if (!name) return "T";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
   const SidebarContent = ({ isMobile = false }) => {
     const collapsed = !isMobile && isCollapsed;
 
     return (
-      <div className="flex flex-col h-full bg-brand-surface border-r border-brand-border text-brand-text-primary transition-all duration-300">
+      <div className="flex flex-col h-full bg-[#FAF8F3] dark:bg-brand-surface border-r border-brand-border text-brand-text-primary transition-all duration-300">
         {/* Sidebar Header */}
-        <div className={`p-4 border-b border-brand-border flex items-center justify-between ${collapsed ? "flex-col gap-4 px-2" : ""}`}>
-          {collapsed ? (
-            <span className="text-xl font-extrabold text-brand-teal-700 dark:text-brand-teal-600 tracking-wider">
-              C.
-            </span>
-          ) : (
+        <div className={`p-4 flex items-center justify-between ${collapsed ? "flex-col gap-4 px-2" : ""}`}>
+          {!collapsed && (
             <span className="text-xl font-extrabold text-brand-teal-700 dark:text-brand-teal-600 tracking-tight">
               Corpus
             </span>
           )}
           
-          <div className={`flex items-center gap-1.5 ${collapsed ? "flex-col" : ""}`}>
+          <div className={`flex items-center gap-1.5 ${collapsed ? "flex-col" : "ml-auto"}`}>
             {!isMobile && (
               <button
                 onClick={toggleCollapse}
@@ -151,13 +158,6 @@ export function Sidebar() {
                 {isCollapsed ? <ChevronRight className="h-4 w-4" strokeWidth={1.75} /> : <ChevronLeft className="h-4 w-4" strokeWidth={1.75} />}
               </button>
             )}
-            <button
-              onClick={handleCreateSession}
-              className="p-1.5 rounded-lg border border-brand-border hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer"
-              title="New Chat"
-            >
-              <Plus className="h-4 w-4" strokeWidth={1.75} />
-            </button>
           </div>
         </div>
 
@@ -166,24 +166,24 @@ export function Sidebar() {
           {!collapsed ? (
             <button
               onClick={handleCreateSession}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-dashed border-brand-border text-brand-text-secondary hover:text-brand-text-primary hover:border-brand-teal-600 hover:bg-brand-teal-100/30 transition-all text-sm font-medium text-left cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-brand-teal-700 hover:bg-brand-teal-600 text-white font-semibold transition-all text-sm shadow-xs hover:shadow-md cursor-pointer"
             >
-              <Plus className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+              <Plus className="h-4.5 w-4.5 shrink-0" strokeWidth={2.5} />
               New Chat
             </button>
           ) : (
             <button
               onClick={handleCreateSession}
-              className="w-full flex items-center justify-center p-2.5 rounded-xl border border-dashed border-brand-border text-brand-text-secondary hover:text-brand-text-primary hover:border-brand-teal-600 hover:bg-brand-teal-100/30 transition-all cursor-pointer"
+              className="w-full flex items-center justify-center p-2.5 rounded-xl bg-brand-teal-700 hover:bg-brand-teal-600 text-white transition-all cursor-pointer shadow-xs"
               title="New Chat"
             >
-              <Plus className="h-4.5 w-4.5 shrink-0" strokeWidth={1.75} />
+              <Plus className="h-5 w-5 shrink-0" strokeWidth={2.5} />
             </button>
           )}
 
           {!collapsed && (
-            <div className="pt-4 pb-1 text-[10px] font-bold text-brand-text-secondary px-3 uppercase tracking-wider font-sans">
-              Recent Chats
+            <div className="pt-5 pb-1 text-[10px] font-bold text-brand-text-secondary px-3 uppercase tracking-wider font-sans">
+              History
             </div>
           )}
 
@@ -206,19 +206,19 @@ export function Sidebar() {
                     collapsed ? "p-2.5 justify-center" : "px-3 py-2.5"
                   } ${
                     isActive
-                      ? "bg-brand-teal-100 border-brand-teal-600 text-brand-teal-700 dark:bg-brand-teal-700/20 dark:border-brand-teal-600 dark:text-emerald-450 font-semibold"
+                      ? "bg-[#DFF7F4]/40 border-[#0F766E]/20 text-[#0F766E] font-bold"
                       : "border-transparent hover:bg-brand-bg text-brand-text-secondary hover:text-brand-text-primary"
                   }`}
                   title={collapsed ? s.title : undefined}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? "text-brand-teal-600 dark:text-emerald-450" : "text-brand-text-secondary"}`} strokeWidth={1.75} />
+                    <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? "text-[#0D9488]" : "text-brand-text-secondary"}`} strokeWidth={1.75} />
                     {!collapsed && <span className="truncate text-left font-medium font-sans">{s.title}</span>}
                   </div>
                   {!collapsed && (
                     <button
                       onClick={(e) => handleDeleteSession(s.id, e)}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-600 dark:hover:text-red-400 text-brand-text-secondary rounded-md hover:bg-brand-bg transition-all cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-650 dark:hover:text-red-400 text-brand-text-secondary rounded-md hover:bg-brand-bg transition-all cursor-pointer"
                       title="Delete Chat"
                     >
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -231,41 +231,95 @@ export function Sidebar() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className={`p-4 border-t border-brand-border flex items-center justify-between gap-3 ${collapsed ? "flex-col px-2 py-4 animate-fade-in" : ""}`}>
-          {!collapsed ? (
-            <div className="min-w-0 flex flex-col font-sans">
-              <span className="text-sm font-semibold text-brand-text-primary truncate">
-                {session?.user?.name || "Taxpayer"}
-              </span>
-              <span className="text-xs text-brand-text-secondary truncate">
-                {session?.user?.email}
-              </span>
-            </div>
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-brand-teal-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {(session?.user?.name || "T")[0].toUpperCase()}
-            </div>
-          )}
-          <div className={`flex items-center gap-1.5 shrink-0 ${collapsed ? "flex-col w-full" : ""}`}>
+        <div className={`p-3 border-t border-brand-border flex flex-col gap-3.5 ${collapsed ? "px-2 py-4" : ""}`}>
+          
+          {/* User Profile Card */}
+          <div className="relative">
             <button
-              onClick={toggleTheme}
-              className={`p-2 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
-              title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className={`w-full flex items-center justify-between p-3.5 rounded-xl border border-brand-border bg-white dark:bg-brand-surface hover:bg-brand-bg/50 transition-all text-left cursor-pointer shadow-xs ${
+                collapsed ? "justify-center" : ""
+              }`}
             >
-              {theme === "light" ? (
-                <Moon className="h-4 w-4" strokeWidth={1.75} />
-              ) : (
-                <Sun className="h-4 w-4" strokeWidth={1.75} />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-full bg-brand-teal-700 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  {getUserInitials(session?.user?.name || "Taxpayer")}
+                </div>
+                {!collapsed && (
+                  <div className="min-w-0 flex flex-col font-sans">
+                    <span className="text-sm font-bold text-brand-text-primary truncate leading-tight">
+                      {session?.user?.name || "Taxpayer"}
+                    </span>
+                    <span className="text-xs text-brand-text-secondary truncate mt-0.5">
+                      {session?.user?.email || "taxpayer@example.com"}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {!collapsed && (
+                <ChevronRight
+                  className={`h-4 w-4 text-brand-text-secondary shrink-0 transition-transform ${
+                    isUserMenuOpen ? "rotate-90" : ""
+                  }`}
+                  strokeWidth={2}
+                />
               )}
             </button>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className={`p-2 text-brand-text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-brand-bg rounded-lg transition-colors cursor-pointer ${collapsed ? "w-full flex justify-center" : ""}`}
-              title="Sign Out"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.75} />
-            </button>
+
+            {/* User Dropdown Menu */}
+            {isUserMenuOpen && (
+              <div className="absolute bottom-full left-0 mb-2 w-full min-w-[200px] z-50 rounded-xl border border-brand-border bg-white dark:bg-brand-surface p-1 shadow-lg animate-fade-in font-sans">
+                <button
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-lg transition-colors cursor-pointer"
+                >
+                  {theme === "light" ? (
+                    <>
+                      <Moon className="h-4 w-4 text-brand-teal-700 mr-1" strokeWidth={1.75} />
+                      Dark Mode
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-4 w-4 text-amber-500 mr-1" strokeWidth={1.75} />
+                      Light Mode
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4 mr-1" strokeWidth={1.75} />
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Expert Help Card */}
+          {!collapsed && (
+            <div className="p-4 rounded-2xl bg-[#FAF6EC] dark:bg-amber-950/10 border border-[#EFD9A5]/40 flex flex-col gap-3.5 shadow-xs">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-brand-surface flex items-center justify-center text-[#C79A3B] shrink-0 border border-[#EFD9A5]/50 shadow-2xs">
+                  <Gem className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="flex flex-col font-sans">
+                  <span className="text-xs font-extrabold text-brand-text-primary leading-tight">Need expert help?</span>
+                  <span className="text-[10px] text-brand-text-secondary leading-normal mt-1">
+                    Connect with a CA for personalized assistance.
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => window.open("https://www.incometaxindia.gov.in", "_blank")}
+                className="w-full py-2.5 px-4 bg-white dark:bg-brand-surface border border-[#EFD9A5] hover:bg-brand-bg text-[#C79A3B] font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-2xs hover:scale-98 active:scale-95 cursor-pointer font-sans"
+              >
+                Talk to a CA
+                <ChevronRight className="h-3 w-3" strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
     );
