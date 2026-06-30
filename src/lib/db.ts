@@ -16,24 +16,37 @@ if (typeof window === "undefined") {
   const isServerless = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
   if (isServerless) {
     const tmpDbPath = path.join(os.tmpdir(), "dev.db");
+    console.log(`[DB] Running in serverless/production mode. Source: ${dbPath}, Target: ${tmpDbPath}`);
     try {
       // Ensure source database exists before attempting to copy
       if (fs.existsSync(dbPath)) {
+        console.log(`[DB] Source database found at ${dbPath}.`);
         if (!fs.existsSync(tmpDbPath)) {
           fs.copyFileSync(dbPath, tmpDbPath);
+          console.log("[DB] Copied source database to /tmp successfully.");
+        } else {
+          console.log("[DB] Database already exists in /tmp, skipping copy.");
         }
         dbPath = tmpDbPath;
       } else {
         // Fallback: If source db was not bundled, create empty database in /tmp to prevent folder-not-found crash
+        console.warn(`[DB] Source database not found at ${dbPath}. Creating empty fallback...`);
         if (!fs.existsSync(tmpDbPath)) {
           fs.writeFileSync(tmpDbPath, "");
+          console.log("[DB] Created empty database in /tmp.");
+        } else {
+          console.log("[DB] Empty database already exists in /tmp.");
         }
         dbPath = tmpDbPath;
       }
     } catch (e) {
-      console.error("Failed to copy database to temp directory, falling back to original path:", e);
+      console.error("[DB] Failed to copy database to temp directory:", e);
     }
   }
+
+  console.log(`[DB] Final database path used by adapter: ${dbPath}`);
+  process.env.DATABASE_URL = `file:${dbPath}`;
+  console.log(`[DB] Overwrote process.env.DATABASE_URL to: ${process.env.DATABASE_URL}`);
 
   const adapter = new PrismaBetterSqlite3({
     url: dbPath,
