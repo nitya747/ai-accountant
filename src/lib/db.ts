@@ -23,6 +23,12 @@ if (typeof window === "undefined") {
           fs.copyFileSync(dbPath, tmpDbPath);
         }
         dbPath = tmpDbPath;
+      } else {
+        // Fallback: If source db was not bundled, create empty database in /tmp to prevent folder-not-found crash
+        if (!fs.existsSync(tmpDbPath)) {
+          fs.writeFileSync(tmpDbPath, "");
+        }
+        dbPath = tmpDbPath;
       }
     } catch (e) {
       console.error("Failed to copy database to temp directory, falling back to original path:", e);
