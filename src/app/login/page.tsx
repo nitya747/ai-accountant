@@ -38,8 +38,7 @@ function LoginForm() {
         throw new Error(res.error);
       }
 
-      router.push("/chat");
-      router.refresh();
+      window.location.href = "/chat";
     } catch (err: any) {
       setError(err.message || "Invalid credentials");
     } finally {
