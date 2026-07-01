@@ -84,7 +84,7 @@ export function extractAssessmentYear(text: string): string {
   return "AY 2025-26"; // Default
 }
 
-export function parseSpeculativeCalculatorArgs(query: string): any | null {
+function parseSpeculativeCalculatorArgsRegex(query: string): any | null {
   const normalized = query.toLowerCase()
     .replace(/,/g, "")
     .replace(/\blakhs?\b/g, "l")
@@ -163,6 +163,79 @@ export function parseSpeculativeCalculatorArgs(query: string): any | null {
   }
 
   return null;
+}
+
+export async function parseSpeculativeCalculatorArgs(
+  query: string,
+  openrouterClient?: any,
+  modelName?: string
+): Promise<{ args: any | null; error?: string } | null> {
+  if (openrouterClient && modelName) {
+    try {
+      logDebugToFile("Speculative calculation: starting LLM-based parsing...");
+      const response = await generateText({
+        model: openrouterClient.chat(modelName),
+        system: `You are an AI financial assistant. Your job is to extract tax-related parameters from user queries for a tax calculator.
+Extract the following details as a JSON object, converting all amounts to ANNUAL figures in INR:
+- hasTaxCalculationIntent (boolean): True ONLY if the query has tax calculation or deduction context and contains numerical financial figures, salary, rent, or deduction amounts.
+- salary (number): gross annual salary/income. If monthly (e.g. 50k pm, 50,000 per month), multiply by 12. If in lakhs, multiply by 100000 (e.g. 12 lakhs = 1200000). If in crores, multiply by 10000000.
+- rentPaid (number): annual rent paid. If monthly, multiply by 12.
+- hraReceived (number): annual HRA received. If not specified but rent is paid, default to same as rent paid.
+- basicSalary (number): annual basic salary (default to 40% of salary if not specified).
+- section80C (number): total deduction under Section 80C.
+- section80D (number): total deduction under Section 80D.
+- section24b (number): home loan interest deduction under Section 24b.
+- isMetro (boolean): true if user lives in a metro city (Mumbai, Delhi, Kolkata, Chennai, Bangalore).
+
+Output ONLY a valid JSON object matching the format below. Do not include markdown code block formatting (like \`\`\`json) or any explanations.
+
+JSON format:
+{
+  "hasTaxCalculationIntent": boolean,
+  "salary": number,
+  "rentPaid": number,
+  "hraReceived": number,
+  "basicSalary": number,
+  "section80C": number,
+  "section80D": number,
+  "section24b": number,
+  "isMetro": boolean
+}`,
+        prompt: `Query: "${query}"`,
+        temperature: 0,
+      });
+
+      const responseText = response.text.trim();
+      const cleanJson = responseText.replace(/```json/i, "").replace(/```/g, "").trim();
+      logDebugToFile("Speculative calculation LLM raw response: " + responseText);
+      const parsed = JSON.parse(cleanJson);
+
+      if (parsed.hasTaxCalculationIntent) {
+        return {
+          args: {
+            salary: parsed.salary || 0,
+            rentPaid: parsed.rentPaid || 0,
+            hraReceived: parsed.hraReceived || parsed.rentPaid || 0,
+            basicSalary: parsed.basicSalary || (parsed.salary ? parsed.salary * 0.4 : 0),
+            section80C: parsed.section80C || 0,
+            section80D: parsed.section80D || 0,
+            section24b: parsed.section24b || 0,
+            isMetro: !!parsed.isMetro,
+          }
+        };
+      }
+      return null;
+    } catch (e: any) {
+      logErrorToFile(e, "parseSpeculativeCalculatorArgsLLM");
+      logDebugToFile("LLM-based parsing failed or timed out. Falling back to regex-based parsing...");
+      const regexArgs = parseSpeculativeCalculatorArgsRegex(query);
+      return { args: regexArgs, error: "Speculative LLM extractor offline (fallback to local regex)" };
+    }
+  }
+
+  // No LLM configured or offline:
+  const regexArgs = parseSpeculativeCalculatorArgsRegex(query);
+  return { args: regexArgs };
 }
 
 function getMessageContent(m: any): string {
@@ -363,25 +436,40 @@ export async function POST(req: Request) {
               controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: searchState, message: searchMessage })}\n`));
 
               // Parallel execution: RAG retrieval & Speculative calculator execution
-              const speculativeArgs = parseSpeculativeCalculatorArgs(userContent);
-              
-              let speculativePromise = Promise.resolve<any>(null);
-              if (speculativeArgs) {
-                logDebugToFile("Speculative calculation arguments extracted: " + JSON.stringify(speculativeArgs));
-                speculativePromise = Promise.resolve().then(async () => {
-                  const res = await tax_slab_calculator.execute!(
-                    { ...speculativeArgs, assessmentYear: ay },
-                    { toolCallId: "speculative-calc-call", messages: [] }
-                  );
-                  return { args: { ...speculativeArgs, assessmentYear: ay }, result: res, toolCallId: "speculative-calc-call" };
-                });
-              }
+              let speculativeParserError: string | undefined = undefined;
+              const speculativePromiseWrapper = (async () => {
+                try {
+                  const parseResult = await parseSpeculativeCalculatorArgs(userContent, openrouterClient, modelName);
+                  if (parseResult) {
+                    if (parseResult.error) {
+                      speculativeParserError = parseResult.error;
+                    }
+                    const speculativeArgs = parseResult.args;
+                    if (speculativeArgs) {
+                      logDebugToFile("Speculative calculation arguments extracted: " + JSON.stringify(speculativeArgs));
+                      const res = await tax_slab_calculator.execute!(
+                        { ...speculativeArgs, assessmentYear: ay },
+                        { toolCallId: "speculative-calc-call", messages: [] }
+                      );
+                      return { args: { ...speculativeArgs, assessmentYear: ay }, result: res, toolCallId: "speculative-calc-call" };
+                    }
+                  }
+                } catch (err) {
+                  logErrorToFile(err, "speculativePromiseWrapper");
+                }
+                return null;
+              })();
 
               logDebugToFile("Starting parallel RAG retrieval and speculative calc execution...");
               const [ragResult, speculativeResult] = await Promise.all([
                 searchHybrid(userContent, 10, 4, sessionId, ay),
-                speculativePromise
+                speculativePromiseWrapper
               ]);
+
+              if (speculativeParserError) {
+                controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "thinking", message: `⚠️ ${speculativeParserError}` })}\n`));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+              }
 
               const chunkContext = ragResult.chunks
                 .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
@@ -581,8 +669,8 @@ export async function POST(req: Request) {
         async start(controller) {
           try {
             const initialStates = [
-              { success: true, state: "thinking", message: "Thinking..." },
-              { success: true, state: "searching_db", message: "Searching tax database..." },
+              { success: true, state: "thinking", message: "⚠️ Live AI offline. Running local calculations..." },
+              { success: true, state: "searching_db", message: "Searching local tax database..." },
               { success: true, state: "analyzing", message: "Analyzing offline rules..." }
             ];
 
