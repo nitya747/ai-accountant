@@ -34,6 +34,35 @@ function chunkText(text: string, size: number = 800, overlap: number = 100): str
   return chunks;
 }
 
+async function generateTextWithFallback(
+  options: any,
+  openrouterClient: any
+): Promise<any> {
+  const models = [
+    process.env.PRIMARY_MODEL,
+    process.env.FALLBACK_MODEL_1,
+    process.env.FALLBACK_MODEL_2,
+    "google/gemma-4-31b-it:free",
+  ].filter(Boolean) as string[];
+
+  let lastError: any = null;
+  for (const modelName of models) {
+    try {
+      console.log(`[Upload] Attempting generateText with model: ${modelName}`);
+      const response = await generateText({
+        ...options,
+        model: openrouterClient.chat(modelName),
+      });
+      console.log(`[Upload] Successfully generated text with model: ${modelName}`);
+      return response;
+    } catch (err: any) {
+      console.error(`[Upload] generateTextWithFallback failure for model ${modelName}:`, err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All models failed in fallback chain");
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -143,8 +172,6 @@ export async function POST(req: Request) {
           baseURL: "https://openrouter.ai/api/v1",
           apiKey: apiKey,
         });
-        const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
-
         const systemPrompt = `You are a data extraction bot. Analyze the raw text of a parsed PDF tax document (Form-16, 26AS, or ITR-V).
 Extract details and return a JSON object with this exact schema. Do not output anything else other than a single JSON block wrapped in \`\`\`json \`\`\` code fence.
 
@@ -170,11 +197,10 @@ JSON Schema:
 
 Ensure numbers are integers. If a field is not found in the text, use 0 or "unknown".`;
 
-        const { text } = await generateText({
-          model: openrouterClient.chat(modelName),
+        const { text } = await generateTextWithFallback({
           system: systemPrompt,
           prompt: `Extract details from this tax document text:\n\n${parsedText}`,
-        });
+        }, openrouterClient);
 
         const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/{[\s\S]*}/);
         if (jsonMatch) {

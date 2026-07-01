@@ -39,6 +39,35 @@ function logDebugToFile(message: string) {
   }
 }
 
+async function generateTextWithFallback(
+  options: any,
+  openrouterClient: any
+): Promise<any> {
+  const models = [
+    process.env.PRIMARY_MODEL,
+    process.env.FALLBACK_MODEL_1,
+    process.env.FALLBACK_MODEL_2,
+    "google/gemma-4-31b-it:free",
+  ].filter(Boolean) as string[];
+
+  let lastError: any = null;
+  for (const modelName of models) {
+    try {
+      logDebugToFile(`Attempting generateText with model: ${modelName}`);
+      const response = await generateText({
+        ...options,
+        model: openrouterClient.chat(modelName),
+      });
+      logDebugToFile(`Successfully generated text with model: ${modelName}`);
+      return response;
+    } catch (err: any) {
+      logErrorToFile(err, `generateTextWithFallback failure for model ${modelName}`);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("All models failed in fallback chain");
+}
+
 const CA_SYSTEM_PROMPT = `You are a knowledgeable and professional Indian Chartered Accountant (CA).
 Your expertise covers:
 1. Income Tax Act, 1961 (especially Section 80C, 80D, Section 24(b) house property, HRA, standard deductions, capital gains, presumptive taxation Section 44AD/44ADA).
@@ -170,11 +199,10 @@ export async function parseSpeculativeCalculatorArgs(
   openrouterClient?: any,
   modelName?: string
 ): Promise<{ args: any | null; error?: string } | null> {
-  if (openrouterClient && modelName) {
+  if (openrouterClient) {
     try {
       logDebugToFile("Speculative calculation: starting LLM-based parsing...");
-      const response = await generateText({
-        model: openrouterClient.chat(modelName),
+      const response = await generateTextWithFallback({
         system: `You are an AI financial assistant. Your job is to extract tax-related parameters from user queries for a tax calculator.
 Extract the following details as a JSON object, converting all amounts to ANNUAL figures in INR:
 - hasTaxCalculationIntent (boolean): True ONLY if the query has tax calculation or deduction context and contains numerical financial figures, salary, rent, or deduction amounts.
@@ -203,7 +231,7 @@ JSON format:
 }`,
         prompt: `Query: "${query}"`,
         temperature: 0,
-      });
+      }, openrouterClient);
 
       const responseText = response.text.trim();
       const cleanJson = responseText.replace(/```json/i, "").replace(/```/g, "").trim();
@@ -318,12 +346,9 @@ export async function POST(req: Request) {
             baseURL: "https://openrouter.ai/api/v1",
             apiKey: apiKey,
           });
-          const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
-          
-          const response = await generateText({
-            model: openrouterClient.chat(modelName),
+          const response = await generateTextWithFallback({
             prompt: `Summarize the following user query into a short, concise chat title of 3-5 words. Do not use punctuation, quotation marks, or surrounding text. Keep it clean and descriptive.\n\nQuery: ${userContent}`,
-          });
+          }, openrouterClient);
           
           generatedTitle = response.text.trim().replace(/['"“`’]/g, "");
           if (!generatedTitle || generatedTitle.length > 45) {
@@ -524,8 +549,7 @@ export async function POST(req: Request) {
                   });
                 }
 
-                const response = await generateText({
-                  model: openrouterClient.chat(modelName),
+                const response = await generateTextWithFallback({
                   system: finalSystemPrompt,
                   messages: currentMessages,
                   maxSteps: 5,
@@ -535,7 +559,7 @@ export async function POST(req: Request) {
                     deduction_lookup,
                     tds_lookup,
                   },
-                } as any);
+                }, openrouterClient);
 
                 finalText = response.text;
                 finalToolResults = response.toolResults || [];
@@ -637,10 +661,56 @@ export async function POST(req: Request) {
 
               controller.close();
             } catch (err: any) {
-              console.error("Online transformedStream execution error:", err);
+              console.error("Online transformedStream execution error, falling back to offline:", err);
               logErrorToFile(err, "transformedStream");
-              controller.enqueue(encoder.encode(`0:${JSON.stringify("An error occurred during response generation. Falling back to offline services...")}\n`));
-              controller.close();
+              
+              try {
+                controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "thinking", message: "⚠️ Online AI error. Running local calculations..." })}\n`));
+                await new Promise((resolve) => setTimeout(resolve, 300));
+
+                const offlineResult = await generateOfflineReport(userContent, ay);
+
+                for (const tr of offlineResult.toolResults) {
+                  await prisma.message.create({
+                    data: {
+                      sessionId,
+                      role: "tool",
+                      content: JSON.stringify(tr.result),
+                      state: JSON.stringify({
+                        toolCallId: tr.toolCallId,
+                        toolName: tr.toolName,
+                        args: tr.args
+                      })
+                    }
+                  });
+                }
+
+                await prisma.message.create({
+                  data: {
+                    sessionId,
+                    role: "assistant",
+                    content: offlineResult.text,
+                    state: offlineResult.toolResults.length > 0 ? JSON.stringify(offlineResult.toolResults) : null
+                  }
+                });
+
+                await prisma.session.update({
+                  where: { id: sessionId },
+                  data: { updatedAt: new Date() }
+                });
+
+                const words = offlineResult.text.split(" ");
+                for (const word of words) {
+                  controller.enqueue(encoder.encode(`0:${JSON.stringify(word + " ")}\n`));
+                  await new Promise((resolve) => setTimeout(resolve, 15));
+                }
+              } catch (offlineErr: any) {
+                console.error("Critical offline fallback failure:", offlineErr);
+                logErrorToFile(offlineErr, "transformedStream_offlineFallback");
+                controller.enqueue(encoder.encode(`0:${JSON.stringify("A critical error occurred. Please try again later.")}\n`));
+              } finally {
+                controller.close();
+              }
             }
           }
         });
