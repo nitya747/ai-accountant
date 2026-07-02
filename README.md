@@ -39,7 +39,7 @@ graph TD
 
 ---
 
-## 🌟 Key Capabilities & Features
+## Key Capabilities & Features
 
 ### 1. Multi-Regime Slab Calculator & Rules
 All tax calculations are programmatically defined in [taxCalculator.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxCalculator.ts) and exposed via [taxTools.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxTools.ts). Features include:
