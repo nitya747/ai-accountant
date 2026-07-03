@@ -87,7 +87,7 @@ Users can upload tax documents (Form-16, 26AS, or ITR acknowledgment PDFs) in th
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```text
 ├── prisma/
