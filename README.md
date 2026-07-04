@@ -6,7 +6,7 @@ Rather than acting as a generic chatbot, Corpus is structured to function like a
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 Corpus uses a multi-layered architecture that guarantees mathematical accuracy, handles offline fallbacks gracefully, and merges unstructured tax documents with structured relational tax rules:
 
