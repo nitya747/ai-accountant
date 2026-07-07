@@ -408,7 +408,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      input: tr.args,
+                      args: tr.args,
                     })),
                   });
                   formattedMessages.push({
@@ -417,10 +417,7 @@ export async function POST(req: Request) {
                       type: "tool-result",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      output: {
-                        type: "json",
-                        value: tr.result
-                      },
+                      result: tr.result,
                     })),
                   });
                 }
@@ -530,7 +527,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: "speculative-calc-call",
                       toolName: "tax_slab_calculator",
-                      input: speculativeResult.args,
+                      args: speculativeResult.args,
                     }],
                   });
                   currentMessages.push({
@@ -540,10 +537,7 @@ export async function POST(req: Request) {
                         type: "tool-result",
                         toolCallId: "speculative-calc-call",
                         toolName: "tax_slab_calculator",
-                        output: {
-                          type: "json",
-                          value: speculativeResult.result,
-                        },
+                        result: speculativeResult.result,
                       }
                     ]
                   });
