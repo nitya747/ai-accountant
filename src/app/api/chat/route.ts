@@ -61,7 +61,7 @@ async function generateTextWithFallback(
       logDebugToFile(`Successfully generated text with model: ${modelName}`);
       return response;
     } catch (err: any) {
-      logErrorToFile(err, `generateTextWithFallback failure for model ${modelName}`);
+      logErrorToFile(err, `generateTextWithFallback failure for model ${modelName}. Options: ${JSON.stringify(options)}`);
       lastError = err;
     }
   }
@@ -408,7 +408,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      args: tr.args,
+                      input: tr.args,
                     })),
                   });
                   formattedMessages.push({
@@ -417,7 +417,10 @@ export async function POST(req: Request) {
                       type: "tool-result",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      result: tr.result,
+                      output: {
+                        type: "json",
+                        value: tr.result
+                      },
                     })),
                   });
                 }
@@ -527,7 +530,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: "speculative-calc-call",
                       toolName: "tax_slab_calculator",
-                      args: speculativeResult.args,
+                      input: speculativeResult.args,
                     }],
                   });
                   currentMessages.push({
@@ -537,7 +540,10 @@ export async function POST(req: Request) {
                         type: "tool-result",
                         toolCallId: "speculative-calc-call",
                         toolName: "tax_slab_calculator",
-                        result: speculativeResult.result,
+                        output: {
+                          type: "json",
+                          value: speculativeResult.result,
+                        },
                       }
                     ]
                   });

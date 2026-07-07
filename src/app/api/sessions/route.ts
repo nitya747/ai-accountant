@@ -62,10 +62,12 @@ export async function GET() {
       if (title === "New Chat" || title === "New Session" || !title) {
         if (s.messages && s.messages.length > 0) {
           title = generateTitleFromMessage(s.messages[0].content);
-          // Persist the updated title in the database
-          await prisma.session.update({
+          // Persist the updated title in the database asynchronously (do not block the read request)
+          prisma.session.update({
             where: { id: s.id },
             data: { title },
+          }).catch((err) => {
+            console.error(`Failed to update session title in background for ${s.id}:`, err);
           });
         }
       }

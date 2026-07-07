@@ -63,7 +63,7 @@ export function Sidebar() {
     return () => {
       window.removeEventListener("session-updated", handleSessionUpdate);
     };
-  }, [session, pathname]);
+  }, [session]);
 
   const handleCreateSession = async () => {
     try {

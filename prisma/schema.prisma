@@ -28,6 +28,8 @@ model Session {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  Message[]
   documents Document[]
+
+  @@index([userId])
 }
 
 model Message {
@@ -38,6 +40,8 @@ model Message {
   state     String?  // State Layer: structured JSON object storing explicit input arguments and output responses of every tool called during that message turn
   createdAt DateTime @default(now())
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model Document {
@@ -48,6 +52,8 @@ model Document {
   sessionId String?
   session   Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   chunks    Chunk[]
+
+  @@index([sessionId])
 }
 
 model Chunk {
@@ -56,4 +62,6 @@ model Chunk {
   content    String
   embedding  String   // JSON string of Float[] for SQLite/fallback compat
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
 }
