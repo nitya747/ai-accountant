@@ -42,6 +42,7 @@ async function generateTextWithFallback(
     process.env.PRIMARY_MODEL,
     process.env.FALLBACK_MODEL_1,
     process.env.FALLBACK_MODEL_2,
+    "openrouter/free",
     "google/gemma-4-31b-it:free",
   ].filter(Boolean) as string[];
 
