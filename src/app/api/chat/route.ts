@@ -43,13 +43,13 @@ async function generateTextWithFallback(
   options: any,
   openrouterClient: any
 ): Promise<any> {
-  const models = [
+  const models = Array.from(new Set([
     process.env.PRIMARY_MODEL,
     process.env.FALLBACK_MODEL_1,
     process.env.FALLBACK_MODEL_2,
     "openrouter/free",
     "google/gemma-4-31b-it:free",
-  ].filter(Boolean) as string[];
+  ].filter(Boolean))) as string[];
 
   let lastError: any = null;
   for (const modelName of models) {
@@ -58,6 +58,7 @@ async function generateTextWithFallback(
       const response = await generateText({
         ...options,
         model: openrouterClient.chat(modelName),
+        maxRetries: 0, // Fail fast to try next fallback model in fallback chain
       });
       logDebugToFile(`Successfully generated text with model: ${modelName}`);
       return response;
@@ -200,6 +201,21 @@ export async function parseSpeculativeCalculatorArgs(
   openrouterClient?: any,
   modelName?: string
 ): Promise<{ args: any | null; error?: string } | null> {
+  // Fast path check: does the query contain numbers or tax keywords?
+  const normalized = query.toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\blakhs?\b/g, "l")
+    .replace(/\bthousands?\b/g, "k")
+    .replace(/\bcrores?\b/g, "cr");
+
+  const hasNumbers = /\d+/.test(normalized) || /\b\d+l\b/.test(normalized) || /\b\d+k\b/.test(normalized);
+  const hasTaxKeywords = normalized.includes("salary") || normalized.includes("tax") || normalized.includes("income") || normalized.includes("rent") || normalized.includes("earn") || normalized.includes("80c") || normalized.includes("80d") || normalized.includes("deduction");
+
+  if (!hasNumbers || !hasTaxKeywords) {
+    logDebugToFile("Speculative calculation: skipped (no tax calculation intent based on fast regex check)");
+    return null;
+  }
+
   if (openrouterClient) {
     try {
       logDebugToFile("Speculative calculation: starting LLM-based parsing...");
@@ -409,7 +425,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      args: tr.args,
+                      input: tr.args || {},
                     })),
                   });
                   formattedMessages.push({
@@ -418,7 +434,7 @@ export async function POST(req: Request) {
                       type: "tool-result",
                       toolCallId: tr.toolCallId || "calc-call",
                       toolName: tr.toolName,
-                      result: tr.result,
+                      output: { type: "json", value: tr.result || {} },
                     })),
                   });
                 }
@@ -528,7 +544,7 @@ export async function POST(req: Request) {
                       type: "tool-call",
                       toolCallId: "speculative-calc-call",
                       toolName: "tax_slab_calculator",
-                      args: speculativeResult.args,
+                      input: speculativeResult.args || {},
                     }],
                   });
                   currentMessages.push({
@@ -538,7 +554,7 @@ export async function POST(req: Request) {
                         type: "tool-result",
                         toolCallId: "speculative-calc-call",
                         toolName: "tax_slab_calculator",
-                        result: speculativeResult.result,
+                        output: { type: "json", value: speculativeResult.result || {} },
                       }
                     ]
                   });
