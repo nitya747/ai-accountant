@@ -6,40 +6,94 @@ Rather than acting as a generic chatbot, Corpus is structured to function like a
 
 ---
 
-##  System Architecture
+## 🏗️ System Architecture
 
-Corpus uses a multi-layered architecture that guarantees mathematical accuracy, handles offline fallbacks gracefully, and merges unstructured tax documents with structured relational tax rules:
+Corpus uses a multi-layered hybrid architecture that guarantees mathematical accuracy, handles offline fallbacks gracefully, and merges unstructured tax documents with structured relational tax rules:
 
 ```mermaid
 graph TD
-    Client[Web Client] -->|User Message| Route[Next.js API Chat Route]
+    Client[Web Client] -->|1. User Query| Route[Next.js Chat API Route]
     
-    subgraph "Online AI Flow"
-        Route -->|1. Search Query| HybridSearch[Hybrid Graph-RAG Search]
-        HybridSearch -->|Vector Query| SQLite[SQLite + Local BGE Embeddings]
-        HybridSearch -->|Graph Entity Match| Neo4j[Neo4j Tax Knowledge Graph]
-        SQLite -->|Vector Chunks| Merge[Merge & Deduplicate]
-        Neo4j -->|Tax Relationships| Merge
-        Merge -->|All Chunks| Cohere[Cohere Rerank API]
-        Cohere -->|Top Reranked Context| CA_Prompt[Chartered Accountant System Prompt]
-        CA_Prompt -->|Combined Context| LLM[LLM Generator]
-        LLM -->|Raw MD Text| QualityGate[Mathematical Quality Gate]
-        QualityGate -->|Verified & Corrected MD| ResponseStream[Response Stream]
+    subgraph "Online RAG & Agent Flow"
+        Route -->|Parallel Spawn| SpecCalc[Speculative Calculator Extraction]
+        Route -->|Parallel Spawn| HybridSearch[Hybrid Graph-RAG Search]
+        
+        SpecCalc -->|Tax Intent Detected?| ExecCalc[Run tax_slab_calculator Tool]
+        
+        HybridSearch -->|Vector Similarity| SQLite[SQLite + Local BGE Embeddings]
+        HybridSearch -->|Graph Relationship Match| Neo4j[Neo4j Tax Graph / Fallback]
+        
+        SQLite -->|Top Vector Chunks| Merge[Merge & Deduplicate]
+        Neo4j -->|Tax Concept Relationships| Merge
+        Merge -->|RAG Expanded Context| Cohere[Cohere Rerank API]
+        
+        ExecCalc -->|Pre-computed JSON Result| AgentLoop[Self-Correction Agent Loop]
+        Cohere -->|Top Reranked Context| AgentLoop
+        
+        subgraph "Self-Correction Agent Loop (Max 3 Turns)"
+            AgentLoop -->|Generate Response| LLM[LLM Generator + Tax Tools]
+            LLM -->|Raw MD Text & Tool Results| QualityGate[Quality Gate checkDiscrepancies]
+            QualityGate -->|If Discrepancy Found| FeedFeedback[Inject Mismatch Feedback]
+            FeedFeedback -->|Return| LLM
+            QualityGate -->|If Valid / Max Turns| HardOverride[Hard Safety Override validateAndCorrectText]
+        end
+        
+        HardOverride -->|Verified MD Response| SaveDB[Save Message to Prisma DB]
+        SaveDB -->|Telemetry & Text Stream| SSE[SSE Streaming Handler]
     end
 
-    subgraph "Offline Fallback Flow"
-        Route -->|If LLM Offline| IntentEngine[Regex Intent Rule Engine]
-        IntentEngine -->|Matches Intent| LocalTools[Local Tax Tools / Calculator]
-        LocalTools -->|Raw Computation| ProgrammaticRep[Programmatic Report Generator]
-        ProgrammaticRep -->|Deterministic Report| ResponseStream
+    subgraph "Offline Local Fallback Flow"
+        Route -->|If LLM/API Offline| IntentEngine[Regex Intent Rule Engine]
+        IntentEngine -->|Evaluate Query Intent| LocalCalculators[Local Programmatic Calculators]
+        LocalCalculators -->|Deterministic Computations| OfflineReporter[Offline Report Generator]
+        OfflineReporter -->|Offline Financial Report MD| SSE
     end
 
-    ResponseStream --> Client
+    SSE -->|Stream Presentation & Metadata| Client
 ```
 
 ---
 
-## Key Capabilities & Features
+## 🛠️ Advanced Engineering Architecture
+
+### 1. SQLite Programmatic Vector Search & Keyword Fallback
+Because SQLite does not natively support vector distance operations, Corpus implements a custom programmatic vector search inside [vectorStore.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/vectorStore.ts):
+* **Embedding Storage**: Text embeddings are generated using the local `Xenova/bge-small-en-v1.5` model via `@huggingface/transformers` and saved in the SQLite `Chunk` table as a stringified JSON array (`JSON string of Float[]`).
+* **In-Memory Cosine Similarity**: On query receipt, the server generates a query embedding and computes cosine similarity in JavaScript across all database chunks.
+* **Keyword Fallback**: If local embedding generation fails or is bypassed, the system falls back to a normalized word-token keyword matching search that scores relevance and boosts exact title/section matches.
+
+### 2. Speculative Calculator Execution
+To bypass slow, multi-turn LLM reasoning loops, the system implements a speculative execution pipeline in [route.ts (chat API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/chat/route.ts):
+* **Fast-Path Parser**: A lightweight regex/LLM extractor scans the incoming query for financial inputs (salary, rent, 80C, 80D, etc.).
+* **Parallel Execution**: If tax calculation intent is found, the system runs the deterministic `tax_slab_calculator` synchronously in parallel with the RAG search.
+* **Pre-Computed Tool Injection**: The result of this calculation is injected directly as a completed tool result in the model's history for the first conversational turn. The LLM gets immediate access to the mathematical truth without needing to formulate and invoke the tool itself.
+
+### 3. Multi-Turn Self-Correction Agent Loop & Hard Safety Override
+Large Language Models (LLMs) often hallucinate math or misalign prose calculations. To ensure absolute compliance with tax rules, Corpus implements a multi-stage validation engine in [qualityGate.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/qualityGate.ts) and [route.ts (chat API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/chat/route.ts):
+* **Feedback Loop (Max 3 Turns)**: The system parses all numbers in the generated markdown response (tables and prose) and validates them against the deterministic output of the calculator tool via `checkDiscrepancies`. If a mismatch is found, it injects structured error feedback (e.g. *“Your standard deduction of ₹50,000 does not match the calculator's ₹75,000 for AY 2025-26”*) and triggers a regeneration.
+* **Hard Safety Override**: If the model fails to resolve discrepancies within 3 turns, [qualityGate.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/qualityGate.ts) applies a regex-based programmatic override (`validateAndCorrectText`) that physically overwrites the numbers in the markdown string to match the calculator's truth before streaming to the client.
+
+### 4. Dual-Layer Message Storage (State vs. Presentation)
+To support rich interactive interfaces while retaining context, the database schema in [schema.prisma](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/prisma/schema.prisma) separates a message's content:
+* **Presentation Layer (`content` field)**: Stores compiled markdown, HTML tags, and visual components rendered directly on the client.
+* **State Layer (`state` field)**: Stores stringified JSON containing the exact history of tool calls, inputs, and outputs executed during that turn. During chat initialization, the backend reconstructs these JSON payloads as authentic tool-call and tool-result message types so the model's memory of past calculations is never broken.
+
+### 5. Multi-Stage Stream Telemetry (SSE Protocol)
+The system streams raw text alongside a custom telemetry channel. In [route.ts (chat API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/chat/route.ts), progression metadata is streamed as `v:JSON` messages, allowing the UI to render real-time progress steps:
+* `thinking`: Initial query parsing.
+* `searching_db` / `searching_web`: Local vector store or internet searches.
+* `analyzing`: Evaluating retrieved documents.
+* `calculating`: Triggering deterministic tax calculators.
+* `verifying_math`: Running the self-correction Quality Gate.
+* `validated`: Confirming mathematical accuracy.
+
+### 6. Deterministic Offline Fallback & Graph DB Fallbacks
+* **Local Intent Engine**: If OpenRouter API keys are missing or endpoints fail, the system falls back to [ruleEngine.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/ruleEngine.ts), evaluating query keywords using a local rule engine, running calculations, and generating a structured **Offline Financial Report** in markdown.
+* **Knowledge Graph Mock**: If a live Neo4j database is not configured (or fails), [neo4j.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/neo4j.ts) falls back to a static in-memory mapping of tax relationships (such as allowed/disallowed deductions by regime).
+
+---
+
+## 🌟 Key Capabilities & Features
 
 ### 1. Multi-Regime Slab Calculator & Rules
 All tax calculations are programmatically defined in [taxCalculator.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxCalculator.ts) and exposed via [taxTools.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxTools.ts). Features include:
@@ -51,34 +105,22 @@ All tax calculations are programmatically defined in [taxCalculator.ts](file:///
 
 ### 2. Graph-RAG Pipeline
 To ensure authoritative citation-backed answers, the system uses a hybrid retrieval pipeline in [vectorStore.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/vectorStore.ts):
-* **Local Embeddings**: Generates query embeddings using a local Hugging Face model (`Xenova/bge-small-en-v1.5`) via `@huggingface/transformers` in [vectorStore.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/vectorStore.ts).
+* **Local Embeddings**: Generates query embeddings using a local Hugging Face model (`Xenova/bge-small-en-v1.5`) via `@huggingface/transformers`.
 * **Tax Knowledge Graph**: Neo4j database linked in [neo4j.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/neo4j.ts) records inter-section relationships (e.g., `Section 80C` is allowed in `Old Regime` but disallowed in `New Regime`). If a database is not configured, it uses a local static fallback graph.
 * **Graph-Expanded Retrieval**: Performs an initial vector search on chunks, extracts referenced tax sections, queries the knowledge graph to fetch related sections, retrieves those documents from the database, and merges the sets.
 * **Cohere Rerank**: Reranks the merged list using Cohere's `rerank-english-v3.0` API before providing the context to the LLM.
 
-### 3. Hallucination Quality Gate
-Large Language Models (LLMs) often struggle with exact math. Corpus implements a quality control layer in [qualityGate.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/qualityGate.ts) that:
-* Parses numbers inside generated LLM responses (markdown tables or text paragraphs).
-* Cross-references them with the outputs of the deterministic `tax_slab_calculator` tool.
-* Automatically corrects any numerical or logic discrepancies in the text before returning it to the user.
-
-### 4. Deterministic Offline Fallback Mode
-When LLM endpoints are unreachable, Corpus activates its offline parser in [ruleEngine.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/ruleEngine.ts):
-* Evaluates incoming queries against a local rule-engine to identify the taxpayer's intent (`TAX_CALCULATION`, `ITR_SELECTION`, `TDS_LOOKUP`, `DEDUCTION_LOOKUP`).
-* Directly runs programmatic calculators.
-* Outputs a compiled, professional **Offline Financial Report** in markdown format.
-
-### 5. Form-16 & Document Parsing
-Users can upload tax documents (Form-16, 26AS, or ITR acknowledgment PDFs) in the chat interface. The server handler at [src/app/api/upload/route.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/upload/route.ts):
+### 3. Form-16 & Document Ingestion
+Users can upload tax documents (Form-16, 26AS, or ITR acknowledgment PDFs) in the chat interface. The server handler at [route.ts (upload API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/upload/route.ts):
 * Extracts PDF text using `pdf-parse`.
 * Employs an LLM extraction routine (or a regex fallback parser) to pull salary, TDS, 80C, 80D, and interest figures.
-* Chunks and saves the document contents as vectors linked to the current chat session for ongoing contextual reference.
+* Chunks the document using a recursive token splitter (800 character size with 100 character overlap) and stores them as vectors in SQLite for conversational reference.
 
 ---
 
 ## 🛠️ Technology Stack
 
-* **Frontend & Backend**: [Next.js 16](https://nextjs.org) (App Router, Tailwind CSS, TypeScript, React 19).
+* **Frontend & Backend**: [Next.js 16.2.9](https://nextjs.org) (App Router, Tailwind CSS v4, TypeScript, React 19.2.4).
 * **Database & ORM**: SQLite via [Prisma](https://www.prisma.io) (defined in [schema.prisma](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/prisma/schema.prisma)).
 * **Knowledge Graph**: [Neo4j](https://neo4j.com) database (with a static in-memory fallback helper).
 * **AI & Embeddings**: Vercel AI SDK, local `@huggingface/transformers` (`bge-small-en-v1.5`), and Cohere Rerank API.
@@ -87,7 +129,7 @@ Users can upload tax documents (Form-16, 26AS, or ITR acknowledgment PDFs) in th
 
 ---
 
-##  Repository Structure
+## 📂 Repository Structure
 
 ```text
 ├── prisma/
@@ -122,6 +164,18 @@ Users can upload tax documents (Form-16, 26AS, or ITR acknowledgment PDFs) in th
 │       ├── qualityGate.ts      # LLM calculation validation and corrections
 │       └── vectorStore.ts      # Hybrid retrieval, local BGE vector search, Cohere Rerank
 ```
+
+For quick reference, see:
+* [schema.prisma](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/prisma/schema.prisma) — Database models and relationships.
+* [route.ts (chat API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/chat/route.ts) — Main streaming and agent self-correction loop logic.
+* [route.ts (upload API)](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/app/api/upload/route.ts) — PDF parsing and chunking ingestion pipeline.
+* [vectorStore.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/vectorStore.ts) — Vector embeddings, cosine similarity, search and reranking.
+* [neo4j.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/neo4j.ts) — Graph query mappings and mock fallback data structure.
+* [taxCalculator.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxCalculator.ts) — Core programmatic tax calculations for regimes.
+* [taxTools.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/taxTools.ts) — Declared tools for LLM interaction (ITR selection, TDS, slabs, deductions).
+* [qualityGate.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/qualityGate.ts) — Programmatic numbers verification and prose corrections.
+* [ruleEngine.ts](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/src/lib/ruleEngine.ts) — Deterministic offline regex intent engine.
+* [DESIGN.md](file:///c:/Users/Nitya/OneDrive/Desktop/AI%20accountant/DESIGN.md) — Frontend design parameters.
 
 ---
 

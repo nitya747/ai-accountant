@@ -552,7 +552,20 @@ export default function SessionChatPage({ params }: { params: Promise<{ id: stri
   }
 
   const renderMessageContent = (m: any) => {
-    const rawText = injectCitationLinks(getMessageText(m));
+    let rawText = injectCitationLinks(getMessageText(m));
+    
+    // Resilient normalization of CalculationGrid and CalculationCard tags
+    if (rawText.includes("CalculationGrid") || rawText.includes("CalculationCard")) {
+      // 1. Normalize spaces in standard closing tags (e.g. "</ CalculationGrid >" -> "</CalculationGrid>")
+      rawText = rawText.replace(/<\/\s*CalculationGrid\s*>/gi, "</CalculationGrid>");
+      rawText = rawText.replace(/<\s*CalculationGrid\s*>/gi, "<CalculationGrid>");
+
+      // 2. Normalize malformed closing tags (e.g., "CalculationGrid>" -> "</CalculationGrid>")
+      rawText = rawText.replace(/(?<![</])CalculationGrid\s*>/gi, "</CalculationGrid>");
+      
+      // 3. Normalize CalculationCard tags to be self-closing if missing the slash (e.g., "<CalculationCard ... >" -> "<CalculationCard ... />")
+      rawText = rawText.replace(/(<CalculationCard[^>]*?)(?<!\/)>/gi, "$1 />");
+    }
     
     if (!rawText.includes("<CalculationGrid>")) {
       return (
