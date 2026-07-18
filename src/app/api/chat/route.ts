@@ -133,173 +133,7 @@ export function extractAssessmentYear(text: string): string {
   return "AY 2025-26"; // Default
 }
 
-function parseSpeculativeCalculatorArgsRegex(query: string): any | null {
-  const normalized = query.toLowerCase()
-    .replace(/,/g, "")
-    .replace(/\blakhs?\b/g, "l")
-    .replace(/\bcrores?\b/g, "cr")
-    .replace(/\bthousands?\b/g, "k");
 
-  // Check if there are signs of calculation and numbers
-  const hasNumbers = /\d+/.test(normalized) || /\b\d+l\b/.test(normalized) || /\b\d+k\b/.test(normalized);
-  const hasTaxKeywords = normalized.includes("salary") || normalized.includes("tax") || normalized.includes("income") || normalized.includes("rent") || normalized.includes("earn") || normalized.includes("80c") || normalized.includes("80d") || normalized.includes("deduction");
-  
-  if (!hasNumbers || !hasTaxKeywords) {
-    return null;
-  }
-
-  // Basic extraction helper
-  const parseAmount = (text: string, keywordPatterns: RegExp[]): number => {
-    for (const pat of keywordPatterns) {
-      const match = text.match(pat);
-      if (match) {
-        const numStr = match[1] || match[0].replace(/[^\d.kKlLcrCR]/g, "");
-        const val = parseFloat(numStr);
-        if (numStr.toLowerCase().endsWith("l")) {
-          return val * 100000;
-        }
-        if (numStr.toLowerCase().endsWith("k")) {
-          return val * 1000;
-        }
-        if (numStr.toLowerCase().endsWith("cr")) {
-          return val * 10000000;
-        }
-        return val;
-      }
-    }
-    return 0;
-  };
-
-  const salary = parseAmount(normalized, [
-    /salary\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i,
-    /earning\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i,
-    /(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\s*[^0-9]*?salary/i
-  ]);
-
-  const rentPaid = parseAmount(normalized, [
-    /rent\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i,
-    /(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\s*[^0-9]*?rent/i
-  ]);
-
-  const section80C = parseAmount(normalized, [
-    /80c\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i
-  ]);
-
-  const section80D = parseAmount(normalized, [
-    /80d\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i
-  ]);
-
-  const section24b = parseAmount(normalized, [
-    /home loan\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i,
-    /24b\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i,
-    /interest\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i
-  ]);
-
-  if (salary > 0 || rentPaid > 0 || section80C > 0 || section80D > 0 || section24b > 0) {
-    const hraReceived = normalized.includes("hra") ? parseAmount(normalized, [/hra\s*[^0-9]*?(\d+(?:\.\d+)?\s*(?:l|k|cr)?)\b/i]) : rentPaid;
-    const basicSalary = salary * 0.4;
-    
-    return {
-      salary,
-      rentPaid,
-      hraReceived: hraReceived || rentPaid,
-      basicSalary,
-      section80C,
-      section80D,
-      section24b,
-      isMetro: normalized.includes("metro") || normalized.includes("mumbai") || normalized.includes("delhi") || normalized.includes("bangalore") || normalized.includes("chennai") || normalized.includes("kolkata")
-    };
-  }
-
-  return null;
-}
-
-export async function parseSpeculativeCalculatorArgs(
-  query: string,
-  openrouterClient?: any,
-  modelName?: string
-): Promise<{ args: any | null; error?: string } | null> {
-  // Fast path check: does the query contain numbers or tax keywords?
-  const normalized = query.toLowerCase()
-    .replace(/,/g, "")
-    .replace(/\blakhs?\b/g, "l")
-    .replace(/\bthousands?\b/g, "k")
-    .replace(/\bcrores?\b/g, "cr");
-
-  const hasNumbers = /\d+/.test(normalized) || /\b\d+l\b/.test(normalized) || /\b\d+k\b/.test(normalized);
-  const hasTaxKeywords = normalized.includes("salary") || normalized.includes("tax") || normalized.includes("income") || normalized.includes("rent") || normalized.includes("earn") || normalized.includes("80c") || normalized.includes("80d") || normalized.includes("deduction");
-
-  if (!hasNumbers || !hasTaxKeywords) {
-    logDebugToFile("Speculative calculation: skipped (no tax calculation intent based on fast regex check)");
-    return null;
-  }
-
-  if (openrouterClient) {
-    try {
-      logDebugToFile("Speculative calculation: starting LLM-based parsing...");
-      const response = await generateTextWithFallback({
-        system: `You are an AI financial assistant. Your job is to extract tax-related parameters from user queries for a tax calculator.
-Extract the following details as a JSON object, converting all amounts to ANNUAL figures in INR:
-- hasTaxCalculationIntent (boolean): True ONLY if the query has tax calculation or deduction context and contains numerical financial figures, salary, rent, or deduction amounts.
-- salary (number): gross annual salary/income. If monthly (e.g. 50k pm, 50,000 per month), multiply by 12. If in lakhs, multiply by 100000 (e.g. 12 lakhs = 1200000). If in crores, multiply by 10000000.
-- rentPaid (number): annual rent paid. If monthly, multiply by 12.
-- hraReceived (number): annual HRA received. If not specified but rent is paid, default to same as rent paid.
-- basicSalary (number): annual basic salary (default to 40% of salary if not specified).
-- section80C (number): total deduction under Section 80C.
-- section80D (number): total deduction under Section 80D.
-- section24b (number): home loan interest deduction under Section 24b.
-- isMetro (boolean): true if user lives in a metro city (Mumbai, Delhi, Kolkata, Chennai, Bangalore).
-
-Output ONLY a valid JSON object matching the format below. Do not include markdown code block formatting (like \`\`\`json) or any explanations.
-
-JSON format:
-{
-  "hasTaxCalculationIntent": boolean,
-  "salary": number,
-  "rentPaid": number,
-  "hraReceived": number,
-  "basicSalary": number,
-  "section80C": number,
-  "section80D": number,
-  "section24b": number,
-  "isMetro": boolean
-}`,
-        prompt: `Query: "${query}"`,
-        temperature: 0,
-      }, openrouterClient);
-
-      const responseText = response.text.trim();
-      const cleanJson = responseText.replace(/```json/i, "").replace(/```/g, "").trim();
-      logDebugToFile("Speculative calculation LLM raw response: " + responseText);
-      const parsed = JSON.parse(cleanJson);
-
-      if (parsed.hasTaxCalculationIntent) {
-        return {
-          args: {
-            salary: parsed.salary || 0,
-            rentPaid: parsed.rentPaid || 0,
-            hraReceived: parsed.hraReceived || parsed.rentPaid || 0,
-            basicSalary: parsed.basicSalary || (parsed.salary ? parsed.salary * 0.4 : 0),
-            section80C: parsed.section80C || 0,
-            section80D: parsed.section80D || 0,
-            section24b: parsed.section24b || 0,
-            isMetro: !!parsed.isMetro,
-          }
-        };
-      }
-      return null;
-    } catch (e: any) {
-      logErrorToFile(e, "parseSpeculativeCalculatorArgsLLM");
-      logDebugToFile("LLM-based parsing failed or timed out. Falling back to regex-based parsing...");
-      const regexArgs = parseSpeculativeCalculatorArgsRegex(query);
-      return { args: regexArgs, error: "Speculative LLM extractor offline (fallback to local regex)" };
-    }
-  }
-
-  // No LLM configured or offline:
-  const regexArgs = parseSpeculativeCalculatorArgsRegex(query);
-  return { args: regexArgs };
-}
 
 function getMessageContent(m: any): string {
   if (typeof m.content === "string" && m.content) return m.content;
@@ -514,41 +348,8 @@ export async function POST(req: Request) {
               
               controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: searchState, message: searchMessage })}\n`));
 
-              // Parallel execution: RAG retrieval & Speculative calculator execution
-              let speculativeParserError: string | undefined = undefined;
-              const speculativePromiseWrapper = (async () => {
-                try {
-                  const parseResult = await parseSpeculativeCalculatorArgs(userContent, openrouterClient, modelName);
-                  if (parseResult) {
-                    if (parseResult.error) {
-                      speculativeParserError = parseResult.error;
-                    }
-                    const speculativeArgs = parseResult.args;
-                    if (speculativeArgs) {
-                      logDebugToFile("Speculative calculation arguments extracted: " + JSON.stringify(speculativeArgs));
-                      const res = await tax_slab_calculator.execute!(
-                        { ...speculativeArgs, assessmentYear: ay },
-                        { toolCallId: "speculative-calc-call", messages: [] }
-                      );
-                      return { args: { ...speculativeArgs, assessmentYear: ay }, result: res, toolCallId: "speculative-calc-call" };
-                    }
-                  }
-                } catch (err) {
-                  logErrorToFile(err, "speculativePromiseWrapper");
-                }
-                return null;
-              })();
-
-              logDebugToFile("Starting parallel RAG retrieval and speculative calc execution...");
-              const [ragResult, speculativeResult] = await Promise.all([
-                searchHybrid(userContent, 10, 4, sessionId, ay),
-                speculativePromiseWrapper
-              ]);
-
-              if (speculativeParserError) {
-                controller.enqueue(encoder.encode(`v:${JSON.stringify({ success: true, state: "thinking", message: `⚠️ ${speculativeParserError}` })}\n`));
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-              }
+              logDebugToFile("Starting RAG retrieval...");
+              const ragResult = await searchHybrid(userContent, 10, 4, sessionId, ay);
 
               const chunkContext = ragResult.chunks
                 .map((c) => `[Document: ${c.title} | Source: ${c.source}]\n${c.content}`)
@@ -576,29 +377,7 @@ export async function POST(req: Request) {
               while (attempt < maxAttempts && !isAgentSuccess) {
                 logDebugToFile(`Agent Loop: Turn ${attempt + 1}/${maxAttempts}`);
 
-                if (attempt === 0 && speculativeResult) {
-                  logDebugToFile("Injecting speculative calculator tool call & result");
-                  currentMessages.push({
-                    role: "assistant",
-                    content: [{
-                      type: "tool-call",
-                      toolCallId: "speculative-calc-call",
-                      toolName: "tax_slab_calculator",
-                      args: speculativeResult.args || {},
-                    }],
-                  });
-                  currentMessages.push({
-                    role: "tool",
-                    content: [
-                      {
-                        type: "tool-result",
-                        toolCallId: "speculative-calc-call",
-                        toolName: "tax_slab_calculator",
-                        result: speculativeResult.result || {},
-                      }
-                    ]
-                  });
-                }
+                // Speculative injection removed
 
                 const response = await generateTextWithFallback({
                   system: finalSystemPrompt,
@@ -616,14 +395,6 @@ export async function POST(req: Request) {
                 finalToolResults = response.toolResults || [];
 
                 let mergedToolResults = [...finalToolResults];
-                if (speculativeResult) {
-                  mergedToolResults.push({
-                    toolCallId: "speculative-calc-call",
-                    toolName: "tax_slab_calculator",
-                    args: speculativeResult.args,
-                    result: speculativeResult.result
-                  });
-                }
 
                 const check = checkDiscrepancies(finalText, mergedToolResults);
 
@@ -651,14 +422,6 @@ export async function POST(req: Request) {
               }
 
               let mergedToolResults = [...finalToolResults];
-              if (speculativeResult && !finalToolResults.some(r => r.toolName === "tax_slab_calculator")) {
-                mergedToolResults.push({
-                  toolCallId: "speculative-calc-call",
-                  toolName: "tax_slab_calculator",
-                  args: speculativeResult.args,
-                  result: speculativeResult.result
-                });
-              }
 
               if (mergedToolResults.length > 0) {
                 for (const res of mergedToolResults) {
