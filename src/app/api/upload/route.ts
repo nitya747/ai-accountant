@@ -38,13 +38,31 @@ async function generateTextWithFallback(
   options: any,
   openrouterClient: any
 ): Promise<any> {
-  const models = [
-    process.env.PRIMARY_MODEL,
-    process.env.FALLBACK_MODEL_1,
-    process.env.FALLBACK_MODEL_2,
-    "openrouter/free",
-    "google/gemma-4-31b-it:free",
-  ].filter(Boolean) as string[];
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+  const isNativeGemini = !!geminiApiKey;
+
+  let models: string[];
+  if (isNativeGemini) {
+    let primaryModel = process.env.PRIMARY_MODEL || "gemini-2.5-flash";
+    if (primaryModel.startsWith("google/")) {
+      primaryModel = primaryModel.replace("google/", "");
+    }
+    models = Array.from(new Set([
+      primaryModel,
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-pro",
+      "gemini-1.5-flash",
+    ]));
+  } else {
+    models = [
+      process.env.PRIMARY_MODEL,
+      process.env.FALLBACK_MODEL_1,
+      process.env.FALLBACK_MODEL_2,
+      "openrouter/free",
+      "google/gemma-4-31b-it:free",
+    ].filter(Boolean) as string[];
+  }
 
   let lastError: any = null;
   for (const modelName of models) {
@@ -113,8 +131,9 @@ export async function POST(req: Request) {
     }
 
     // Determine Mode (Mock vs Real)
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    const isMockMode = !apiKey || apiKey === "mock-openrouter-key";
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+    const isMockMode = (!openrouterApiKey || openrouterApiKey === "mock-openrouter-key") && !geminiApiKey;
 
     let extractedData: any = null;
 
@@ -169,10 +188,18 @@ export async function POST(req: Request) {
     } else {
       // Real API mode
       try {
-        const openrouterClient = createOpenAI({
-          baseURL: "https://openrouter.ai/api/v1",
-          apiKey: apiKey,
-        });
+        let openrouterClient: any;
+        if (geminiApiKey) {
+          openrouterClient = createOpenAI({
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+            apiKey: geminiApiKey,
+          });
+        } else {
+          openrouterClient = createOpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: openrouterApiKey,
+          });
+        }
         const systemPrompt = `You are a data extraction bot. Analyze the raw text of a parsed PDF tax document (Form-16, 26AS, or ITR-V).
 Extract details and return a JSON object with this exact schema. Do not output anything else other than a single JSON block wrapped in \`\`\`json \`\`\` code fence.
 

@@ -43,13 +43,31 @@ async function generateTextWithFallback(
   options: any,
   openrouterClient: any
 ): Promise<any> {
-  const models = Array.from(new Set([
-    process.env.PRIMARY_MODEL,
-    process.env.FALLBACK_MODEL_1,
-    process.env.FALLBACK_MODEL_2,
-    "openrouter/free",
-    "google/gemma-4-31b-it:free",
-  ].filter(Boolean))) as string[];
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+  const isNativeGemini = !!geminiApiKey;
+  
+  let models: string[];
+  if (isNativeGemini) {
+    let primaryModel = process.env.PRIMARY_MODEL || "gemini-2.5-flash";
+    if (primaryModel.startsWith("google/")) {
+      primaryModel = primaryModel.replace("google/", "");
+    }
+    models = Array.from(new Set([
+      primaryModel,
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-pro",
+      "gemini-1.5-flash",
+    ]));
+  } else {
+    models = Array.from(new Set([
+      process.env.PRIMARY_MODEL,
+      process.env.FALLBACK_MODEL_1,
+      process.env.FALLBACK_MODEL_2,
+      "openrouter/free",
+      "google/gemma-4-31b-it:free",
+    ].filter(Boolean))) as string[];
+  }
 
   let lastError: any = null;
   for (const modelName of models) {
@@ -352,20 +370,29 @@ export async function POST(req: Request) {
 
     // Automatically update the session title if it is still a default title
     if (dbSession && (dbSession.title === "New Chat" || dbSession.title === "New Session" || !dbSession.title)) {
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      const isMockMode = !apiKey || apiKey === "mock-openrouter-key";
+      const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+      const isMockMode = (!openrouterApiKey || openrouterApiKey === "mock-openrouter-key") && !geminiApiKey;
       let generatedTitle = "";
       if (isMockMode) {
         generatedTitle = generateTitleFromMessage(userContent);
       } else {
         try {
-          const openrouterClient = createOpenAI({
-            baseURL: "https://openrouter.ai/api/v1",
-            apiKey: apiKey,
-          });
+          let titleClient: any;
+          if (geminiApiKey) {
+            titleClient = createOpenAI({
+              baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+              apiKey: geminiApiKey,
+            });
+          } else {
+            titleClient = createOpenAI({
+              baseURL: "https://openrouter.ai/api/v1",
+              apiKey: openrouterApiKey,
+            });
+          }
           const response = await generateTextWithFallback({
             prompt: `Summarize the following user query into a short, concise chat title of 3-5 words. Do not use punctuation, quotation marks, or surrounding text. Keep it clean and descriptive.\n\nQuery: ${userContent}`,
-          }, openrouterClient);
+          }, titleClient);
           
           generatedTitle = response.text.trim().replace(/['"“`’]/g, "");
           if (!generatedTitle || generatedTitle.length > 45) {
@@ -383,24 +410,37 @@ export async function POST(req: Request) {
       });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    let isMockMode = !apiKey || apiKey === "mock-openrouter-key";
+    const openrouterApiKey = process.env.OPENROUTER_API_KEY;
+    const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
+    let isMockMode = (!openrouterApiKey || openrouterApiKey === "mock-openrouter-key") && !geminiApiKey;
 
     const ay = extractAssessmentYear(userContent);
 
     if (!isMockMode) {
       try {
-        logDebugToFile("Starting online chat flow...");
-        const openrouterClient = createOpenAI({
-          baseURL: "https://openrouter.ai/api/v1",
-          apiKey: apiKey,
-          headers: {
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "Corpus",
-          }
-        });
+        let openrouterClient: any;
+        let modelName = process.env.PRIMARY_MODEL || "google/gemini-2.5-flash";
 
-        const modelName = process.env.PRIMARY_MODEL || "deepseek/deepseek-chat-v3-0324:free";
+        if (geminiApiKey) {
+          logDebugToFile("Starting online chat flow using native Gemini API key...");
+          openrouterClient = createOpenAI({
+            baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+            apiKey: geminiApiKey,
+          });
+          if (modelName.startsWith("google/")) {
+            modelName = modelName.replace("google/", "");
+          }
+        } else {
+          logDebugToFile("Starting online chat flow using OpenRouter API key...");
+          openrouterClient = createOpenAI({
+            baseURL: "https://openrouter.ai/api/v1",
+            apiKey: openrouterApiKey,
+            headers: {
+              "HTTP-Referer": "http://localhost:3000",
+              "X-Title": "Corpus",
+            }
+          });
+        }
 
         const dbMessages = await prisma.message.findMany({
           where: { sessionId },
